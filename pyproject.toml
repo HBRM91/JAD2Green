@@ -1,0 +1,22 @@
+[tool.uv.workspace]
+members = [
+    "packages/kernel",
+    "apps/api",
+    "apps/worker",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["packages/kernel/tests", "apps/api/tests"]
