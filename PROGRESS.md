@@ -1,12 +1,12 @@
 # PROGRESS
 
-## Current phase: 2
-## Next phase: 3
+## Current phase: 3
+## Next phase: 4
 
 ## Done
 - [x] Phase 0 — scaffold + control files (commit: ff9bb2f)
 - [x] Phase 1 — schema + RLS + seed (commit: 5236c43)
-- [ ] Phase 2 — kernel
+- [x] Phase 2 — kernel (commit: 169bcbd)
 - [ ] Phase 3 — api
 - [ ] Phase 4 — ingestion
 - [ ] Phase 5 — report + delivery
