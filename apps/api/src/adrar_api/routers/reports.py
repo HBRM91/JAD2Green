@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from ..deps import DBDep, TenantDep
 
@@ -119,13 +120,17 @@ def download_report(
     )
 
 
+class GoogleExportRequest(BaseModel):
+    google_access_token: str = ""
+
+
 @router.post("/projects/{project_id}/snapshots/{snap_id}/export")
 def export_to_google_docs(
     project_id: str,
     snap_id: str,
+    body: GoogleExportRequest,
     tenant: TenantDep,
     db: DBDep,
-    google_access_token: str = "",
 ) -> dict:
     """
     Export report to Google Docs (opt-in, default OFF — §0.11).
@@ -186,7 +191,7 @@ def export_to_google_docs(
         return google_docs_export(
             docx_bytes=docx_bytes,
             bureau_google_export_enabled=bureau_enabled,
-            google_access_token=google_access_token or None,
+            google_access_token=body.google_access_token or None,
             filename=f"Bilan Carbone {proj_name} {snapshot['reporting_year']}",
         )
     except GoogleExportDisabledError as exc:
