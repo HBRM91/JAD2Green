@@ -1,0 +1,75 @@
+name: Adrar AI — Run Next Phase
+
+# Trigger manually from GitHub mobile app (Actions tab → Run workflow)
+# or on a schedule.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "go" to run the next build phase'
+        required: true
+        default: 'go'
+  schedule:
+    # Optional: runs every Monday at 09:00 UTC
+    # Remove or comment out if you prefer manual-only
+    - cron: '0 9 * * 1'
+
+jobs:
+  build-next-phase:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push the phase commit
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        working-directory: adrar
+        run: |
+          pip install --quiet uv
+          pip install --quiet \
+            -e packages/kernel \
+            -e apps/api \
+            -e apps/worker \
+            pytest psycopg2-binary testing.postgresql sqlparse \
+            openpyxl pdfplumber python-docx matplotlib anthropic \
+            fastapi httpx python-jose pydantic pydantic-settings celery
+
+      - name: Set up Node / pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install Node deps
+        working-directory: adrar/apps/web
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Configure git identity
+        run: |
+          git config --global user.email "hamzaelbouhali@gmail.com"
+          git config --global user.name "Hamza (Claude Code)"
+
+      - name: Run Claude Code — next phase
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        working-directory: adrar
+        run: |
+          npx --yes @anthropic-ai/claude-code \
+            --print "go" \
+            --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+            --max-turns 120
+
+      - name: Push phase commit
+        run: |
+          git push origin master
