@@ -1,11 +1,11 @@
 # PROGRESS
 
-## Current phase: 1
-## Next phase: 2
+## Current phase: 2
+## Next phase: 3
 
 ## Done
 - [x] Phase 0 — scaffold + control files (commit: ff9bb2f)
-- [ ] Phase 1 — schema + RLS + seed
+- [x] Phase 1 — schema + RLS + seed (commit: 5236c43)
 - [ ] Phase 2 — kernel
 - [ ] Phase 3 — api
 - [ ] Phase 4 — ingestion
@@ -15,7 +15,9 @@
 - [ ] Phase 8 — CBAM (deferred)
 
 ## Deviations from spec
-- none
+- PostgreSQL run for tests uses portable pg17 at ~/AppData/Local/pg17_portable (no system install).
+  Tests connect as 'app_user' (non-superuser) to exercise RLS, matching Supabase 'authenticated' role.
+  Teardown uses pg_ctl stop -m fast (Windows-compatible; SIGINT not supported on Win32).
 
 ## OPEN QUESTIONS (stop and ask rather than guess on invariants)
 - none
