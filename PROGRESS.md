@@ -4,7 +4,7 @@
 ## Next phase: 2
 
 ## Done
-- [x] Phase 0 — scaffold + control files (commit: see git log)
+- [x] Phase 0 — scaffold + control files (commit: ff9bb2f)
 - [ ] Phase 1 — schema + RLS + seed
 - [ ] Phase 2 — kernel
 - [ ] Phase 3 — api
