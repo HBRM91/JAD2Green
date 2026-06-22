@@ -7,11 +7,125 @@ import { apiJson, apiFetch } from "@/lib/api";
 import type { ActivityFact, Project, ReportSnapshot, Anomaly } from "@/lib/types";
 
 type Tab = "facts" | "compute" | "results";
+type Lang = "fr" | "en";
+
+const T = {
+  fr: {
+    back: "← Projets",
+    proposed_count: (n: number) => `${n} proposé${n > 1 ? "s" : ""}`,
+    validated_count: (n: number) => `${n} validé${n > 1 ? "s" : ""}`,
+    snapshots: "Snapshots",
+    anomalies_lbl: "Anomalies",
+    tab_facts: "Faits d'activité",
+    tab_compute: "Calcul",
+    tab_results: "Résultats",
+    upload_title: "Importer un document",
+    upload_btn: "Envoyer",
+    uploading: "Envoi...",
+    upload_type_err: "Type non supporté. Utilisez PDF, XLSX, CSV ou DOCX.",
+    upload_size_err: "Fichier trop volumineux (max 50 Mo).",
+    upload_ok: "Document envoyé — extraction en cours.",
+    upload_fail: "Échec de l'envoi. Veuillez réessayer.",
+    proposed_title: "Faits proposés — validation requise",
+    pending: (n: number) => `${n} en attente`,
+    validate_notice: "Seul un consultant habilité peut valider ces faits. Chaque validation engage votre responsabilité professionnelle.",
+    validate_btn: "Valider",
+    validated_title: "Faits validés",
+    badge_validated: "✓ validé",
+    no_facts: "Aucun fait d'activité. Importez un document pour commencer l'extraction.",
+    proposed_warning: (n: number) => `${n} fait(s) encore proposés. Validez-les dans l'onglet "Faits" avant de lancer le calcul.`,
+    compute_title: "Paramètres de calcul",
+    region_lbl: "Région",
+    year_lbl: "Année de reporting",
+    gwp_lbl: "Base GWP",
+    reconcile_btn: "Vérifier réconciliation",
+    compute_btn: "Lancer le calcul d'émissions",
+    computing: "Calcul en cours...",
+    compute_err: (n: number) => `${n} fait(s) encore proposés. Validez-les d'abord.`,
+    compute_fail: "Échec du calcul. Vérifiez que tous les faits sont validés.",
+    anomalies_title: "Anomalies détectées",
+    export_title: "Export Google Docs",
+    export_desc: "Désactivé par défaut (§0.11). Seul le rapport agrégé est envoyé — aucune donnée brute.",
+    enabled: "Activé",
+    disabled: "Désactivé",
+    no_snapshots: "Aucun snapshot. Lancez un calcul depuis l'onglet \"Calcul\".",
+    download_btn: "⬇ Télécharger DOCX",
+    google_btn: "Google Docs →",
+    exporting: "Export...",
+    snap_label: "Snapshot",
+    hash_lbl: "hash",
+    scope_title: "Répartition par scope",
+    uncertainty_lbl: "Incertitude (hors totaux, §0.2)",
+    reconcile_warn: "Réconciliation",
+    ai_disclosure: "Ce rapport a été produit avec l'assistance de l'IA (Adrar AI). Les facteurs d'émission requièrent une validation experte. Adrar AI accélère le reporting expert — aucune garantie de conformité réglementaire automatique.",
+    scope2_loc: "Scope 2 location",
+    scope2_mkt: "Scope 2 marché",
+    total: "Total CO₂e",
+    validate_fail: "Échec de la validation",
+    google_doc: "Document Google",
+  },
+  en: {
+    back: "← Projects",
+    proposed_count: (n: number) => `${n} proposed`,
+    validated_count: (n: number) => `${n} validated`,
+    snapshots: "Snapshots",
+    anomalies_lbl: "Anomalies",
+    tab_facts: "Activity Facts",
+    tab_compute: "Compute",
+    tab_results: "Results",
+    upload_title: "Import Document",
+    upload_btn: "Upload",
+    uploading: "Uploading...",
+    upload_type_err: "Unsupported type. Use PDF, XLSX, CSV or DOCX.",
+    upload_size_err: "File too large (max 50 MB).",
+    upload_ok: "Document uploaded — extraction queued.",
+    upload_fail: "Upload failed. Please retry.",
+    proposed_title: "Proposed Facts — Validation Required",
+    pending: (n: number) => `${n} pending`,
+    validate_notice: "Only an authorised consultant may validate facts. Each validation is irreversible and carries professional responsibility.",
+    validate_btn: "Validate",
+    validated_title: "Validated Facts",
+    badge_validated: "✓ validated",
+    no_facts: "No activity facts. Import a document to begin extraction.",
+    proposed_warning: (n: number) => `${n} fact(s) still proposed. Validate them in the "Facts" tab before computing.`,
+    compute_title: "Computation Parameters",
+    region_lbl: "Region",
+    year_lbl: "Reporting Year",
+    gwp_lbl: "GWP Basis",
+    reconcile_btn: "Check Reconciliation",
+    compute_btn: "Run Emissions Computation",
+    computing: "Computing...",
+    compute_err: (n: number) => `${n} fact(s) still proposed. Validate them first.`,
+    compute_fail: "Computation failed. Ensure all facts are validated.",
+    anomalies_title: "Detected Anomalies",
+    export_title: "Google Docs Export",
+    export_desc: "Off by default (§0.11). Only the aggregate report is sent — no raw data.",
+    enabled: "Enabled",
+    disabled: "Disabled",
+    no_snapshots: "No snapshots. Run a computation from the \"Compute\" tab.",
+    download_btn: "⬇ Download DOCX",
+    google_btn: "Google Docs →",
+    exporting: "Exporting...",
+    snap_label: "Snapshot",
+    hash_lbl: "hash",
+    scope_title: "Scope Breakdown",
+    uncertainty_lbl: "Uncertainty (separate from totals, §0.2)",
+    reconcile_warn: "Reconciliation",
+    ai_disclosure: "This report was produced with AI assistance (Adrar AI). Emission factors require expert validation. Adrar AI accelerates expert reporting — no automatic regulatory compliance guarantee.",
+    scope2_loc: "Scope 2 location",
+    scope2_mkt: "Scope 2 market",
+    total: "Total CO₂e",
+    validate_fail: "Validation failed",
+    google_doc: "Google Document",
+  },
+};
 
 export default function ProjectDetailPage() {
   const router = useRouter();
   const { id: projectId } = useParams<{ id: string }>();
   const supabase = createClient();
+  const [lang, setLang] = useState<Lang>("fr");
+  const t = T[lang];
 
   const [token, setToken] = useState<string | null>(null);
   const [project, setProject] = useState<Project | null>(null);
@@ -80,7 +194,7 @@ export default function ProjectDetailPage() {
       );
       setFacts((f) => f.map((x) => (x.id === factId ? updated : x)));
     } catch {
-      setValidateErrors((v) => ({ ...v, [factId]: "Échec de la validation" }));
+      setValidateErrors((v) => ({ ...v, [factId]: t.validate_fail }));
     } finally {
       setValidating((v) => ({ ...v, [factId]: false }));
     }
@@ -91,7 +205,7 @@ export default function ProjectDetailPage() {
     if (!token) return;
     const pending = facts.filter((f) => f.state === "proposed");
     if (pending.length > 0) {
-      setComputeError(`${pending.length} fait(s) encore en état "proposé". Validez-les d'abord.`);
+      setComputeError(t.compute_err(pending.length));
       return;
     }
     setComputing(true);
@@ -104,7 +218,7 @@ export default function ProjectDetailPage() {
       setSnapshots((s) => [snap, ...s]);
       setTab("results");
     } catch {
-      setComputeError("Échec du calcul. Vérifiez que tous les faits sont validés et que les données sont complètes.");
+      setComputeError(t.compute_fail);
     } finally {
       setComputing(false);
     }
@@ -166,13 +280,18 @@ export default function ProjectDetailPage() {
     if (!token || !uploadFile) return;
 
     // Client-side type check (defence-in-depth; backend re-validates)
-    const allowed = ["application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    const allowed = [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/csv",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
     if (!allowed.includes(uploadFile.type)) {
-      setUploadMsg({ text: "Type de fichier non supporté. Utilisez PDF, XLSX, CSV ou DOCX.", ok: false });
+      setUploadMsg({ text: t.upload_type_err, ok: false });
       return;
     }
     if (uploadFile.size > 50 * 1024 * 1024) {
-      setUploadMsg({ text: "Fichier trop volumineux (max 50 Mo).", ok: false });
+      setUploadMsg({ text: t.upload_size_err, ok: false });
       return;
     }
 
@@ -190,10 +309,10 @@ export default function ProjectDetailPage() {
         }
       );
       if (!res.ok) throw new Error();
-      setUploadMsg({ text: "Document envoyé — extraction en cours (traitement asynchrone).", ok: true });
+      setUploadMsg({ text: t.upload_ok, ok: true });
       setUploadFile(null);
     } catch {
-      setUploadMsg({ text: "Échec de l'envoi. Veuillez réessayer.", ok: false });
+      setUploadMsg({ text: t.upload_fail, ok: false });
     } finally {
       setUploading(false);
     }
@@ -204,39 +323,89 @@ export default function ProjectDetailPage() {
   const proposed = facts.filter((f) => f.state === "proposed");
   const validated = facts.filter((f) => f.state === "validated");
 
+  const statusColor: Record<string, string> = {
+    active: "var(--green)",
+    completed: "var(--accent)",
+    draft: "var(--muted)",
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       {/* Topbar */}
       <header style={topbarStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <button onClick={() => router.push("/projects")} style={backBtn}>← Projets</button>
+          <button onClick={() => router.push("/projects")} style={backBtn}>{t.back}</button>
           <span style={{ color: "var(--border)" }}>|</span>
-          <span style={logoChip}>JAD2</span>
-          <span style={{ fontWeight: 700, color: "var(--navy)", fontSize: "1rem" }}>{project?.name}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={logoChip}>JAD2</span>
+            <span style={{ fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Advisory</span>
+          </div>
+          <span style={{ color: "var(--border)" }}>|</span>
+          <span style={{ fontWeight: 700, color: "var(--navy)", fontSize: "0.95rem" }}>{project?.name}</span>
         </div>
-        <span style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 600 }}>
-          Année {project?.reporting_year} · {project?.status}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          {project && (
+            <span style={{
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              padding: "0.2rem 0.6rem",
+              borderRadius: "9999px",
+              background: `${statusColor[project.status] ?? "var(--muted)"}18`,
+              color: statusColor[project.status] ?? "var(--muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}>
+              {project.status}
+            </span>
+          )}
+          <span style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 600 }}>
+            {project?.reporting_year}
+          </span>
+          {/* Language toggle */}
+          <button
+            onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+            style={{
+              background: "none",
+              border: "1px solid var(--border)",
+              borderRadius: "0.3rem",
+              padding: "0.2rem 0.55rem",
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              color: "var(--navy)",
+              letterSpacing: "0.08em",
+            }}
+          >
+            {lang === "fr" ? "EN" : "FR"}
+          </button>
+        </div>
       </header>
 
-      {/* Stats bar */}
+      {/* Sub-header stats bar */}
       <div style={statsBar}>
-        <StatChip label="Proposés" value={proposed.length} color="var(--amber)" />
-        <StatChip label="Validés" value={validated.length} color="var(--green)" />
-        <StatChip label="Snapshots" value={snapshots.length} color="var(--accent)" />
-        {anomalies.length > 0 && <StatChip label="Anomalies" value={anomalies.length} color="var(--red)" />}
+        <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
+          <StatChip label={t.proposed_count(proposed.length)} value={proposed.length} color="var(--amber)" />
+          <StatChip label={t.validated_count(validated.length)} value={validated.length} color="var(--green)" />
+          <StatChip label={t.snapshots} value={snapshots.length} color="var(--accent)" />
+          {anomalies.length > 0 && <StatChip label={t.anomalies_lbl} value={anomalies.length} color="var(--red)" />}
+        </div>
+        {project?.client_id && (
+          <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
+            Client ID: {project.client_id.slice(0, 8)}…
+          </span>
+        )}
       </div>
 
       <div style={pageWrap}>
         {/* Tabs */}
         <div style={tabBarStyle}>
-          {(["facts", "compute", "results"] as Tab[]).map((t) => (
-            <button key={t} onClick={() => setTab(t)} style={{ ...tabBtnBase, ...(tab === t ? tabBtnActive : {}) }}>
-              {t === "facts" ? "Faits d'activité" : t === "compute" ? "Calcul" : "Résultats"}
-              {t === "facts" && facts.length > 0 && (
+          {(["facts", "compute", "results"] as Tab[]).map((tb) => (
+            <button key={tb} onClick={() => setTab(tb)} style={{ ...tabBtnBase, ...(tab === tb ? tabBtnActive : {}) }}>
+              {tb === "facts" ? t.tab_facts : tb === "compute" ? t.tab_compute : t.tab_results}
+              {tb === "facts" && facts.length > 0 && (
                 <span style={tabBadge}>{facts.length}</span>
               )}
-              {t === "results" && snapshots.length > 0 && (
+              {tb === "results" && snapshots.length > 0 && (
                 <span style={tabBadge}>{snapshots.length}</span>
               )}
             </button>
@@ -248,7 +417,7 @@ export default function ProjectDetailPage() {
           <div>
             {/* Upload */}
             <div style={{ ...sectionCard, marginBottom: "1.5rem" }}>
-              <h3 style={sectionTitle}>Importer un document</h3>
+              <h3 style={sectionTitle}>{t.upload_title}</h3>
               <form onSubmit={handleUpload} style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
                 <input
                   type="file"
@@ -257,11 +426,17 @@ export default function ProjectDetailPage() {
                   style={{ flex: 1, minWidth: 200, fontSize: "0.875rem" }}
                 />
                 <button type="submit" disabled={!uploadFile || uploading} style={primaryBtn}>
-                  {uploading ? "Envoi..." : "Envoyer"}
+                  {uploading ? t.uploading : t.upload_btn}
                 </button>
               </form>
               {uploadMsg && (
-                <div style={{ marginTop: "0.6rem", padding: "0.55rem 0.8rem", borderRadius: "0.375rem", fontSize: "0.85rem", background: uploadMsg.ok ? "#f0fdf4" : "#fef2f2", color: uploadMsg.ok ? "var(--green)" : "var(--red)", border: `1px solid ${uploadMsg.ok ? "#86efac" : "#fca5a5"}` }}>
+                <div style={{
+                  marginTop: "0.6rem", padding: "0.55rem 0.8rem",
+                  borderRadius: "0.375rem", fontSize: "0.85rem",
+                  background: uploadMsg.ok ? "#f0fdf4" : "#fef2f2",
+                  color: uploadMsg.ok ? "var(--green)" : "var(--red)",
+                  border: `1px solid ${uploadMsg.ok ? "#86efac" : "#fca5a5"}`,
+                }}>
                   {uploadMsg.text}
                 </div>
               )}
@@ -273,14 +448,14 @@ export default function ProjectDetailPage() {
                 <div style={{ ...sectionCard, borderLeft: "4px solid var(--amber)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
                     <h3 style={{ ...sectionTitle, margin: 0, color: "var(--amber)" }}>
-                      Faits proposés — validation requise
+                      {t.proposed_title}
                     </h3>
                     <span style={{ fontSize: "0.75rem", background: "#fef3c7", color: "#92400e", padding: "0.2rem 0.6rem", borderRadius: "9999px", fontWeight: 700 }}>
-                      {proposed.length} en attente
+                      {t.pending(proposed.length)}
                     </span>
                   </div>
                   <p style={{ fontSize: "0.82rem", color: "var(--muted)", marginBottom: "1rem" }}>
-                    Seul un consultant habilité peut valider ces faits. Chaque validation est irréversible et engage votre responsabilité professionnelle.
+                    {t.validate_notice}
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                     {proposed.map((f) => (
@@ -290,6 +465,8 @@ export default function ProjectDetailPage() {
                         onValidate={() => handleValidate(f.id)}
                         validating={validating[f.id]}
                         error={validateErrors[f.id]}
+                        validateLabel={t.validate_btn}
+                        badgeLabel={t.badge_validated}
                       />
                     ))}
                   </div>
@@ -301,13 +478,15 @@ export default function ProjectDetailPage() {
             {validated.length > 0 && (
               <div style={sectionCard}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                  <h3 style={{ ...sectionTitle, margin: 0, color: "var(--green)" }}>Faits validés</h3>
+                  <h3 style={{ ...sectionTitle, margin: 0, color: "var(--green)" }}>{t.validated_title}</h3>
                   <span style={{ fontSize: "0.75rem", background: "#f0fdf4", color: "#166534", padding: "0.2rem 0.6rem", borderRadius: "9999px", fontWeight: 700 }}>
-                    {validated.length} validé{validated.length > 1 ? "s" : ""}
+                    {t.validated_count(validated.length)}
                   </span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                  {validated.map((f) => <FactRow key={f.id} fact={f} />)}
+                  {validated.map((f) => (
+                    <FactRow key={f.id} fact={f} validateLabel={t.validate_btn} badgeLabel={t.badge_validated} />
+                  ))}
                 </div>
               </div>
             )}
@@ -315,7 +494,7 @@ export default function ProjectDetailPage() {
             {facts.length === 0 && (
               <div style={{ textAlign: "center", padding: "3rem", color: "var(--muted)" }}>
                 <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📄</div>
-                <p>Aucun fait d&apos;activité. Importez un document pour commencer l&apos;extraction.</p>
+                <p>{t.no_facts}</p>
               </div>
             )}
           </div>
@@ -328,24 +507,24 @@ export default function ProjectDetailPage() {
               <div style={{ background: "#fefce8", border: "1px solid #fde68a", borderRadius: "0.5rem", padding: "0.9rem 1.1rem", marginBottom: "1.5rem", display: "flex", gap: "0.6rem", alignItems: "flex-start" }}>
                 <span>⚠️</span>
                 <div style={{ fontSize: "0.875rem", color: "#92400e" }}>
-                  <strong>{proposed.length} fait(s)</strong> encore en état proposé. Validez-les dans l&apos;onglet &quot;Faits d&apos;activité&quot; avant de lancer le calcul.
+                  {t.proposed_warning(proposed.length)}
                 </div>
               </div>
             )}
 
             <div style={sectionCard}>
-              <h3 style={sectionTitle}>Paramètres de calcul</h3>
+              <h3 style={sectionTitle}>{t.compute_title}</h3>
               <form onSubmit={handleCompute} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div>
-                  <label style={labelStyle}>Région</label>
+                  <label style={labelStyle}>{t.region_lbl}</label>
                   <input value={computeForm.region} onChange={(e) => setComputeForm({ ...computeForm, region: e.target.value })} style={inputStyle} placeholder="MA" />
                 </div>
                 <div>
-                  <label style={labelStyle}>Année de reporting</label>
+                  <label style={labelStyle}>{t.year_lbl}</label>
                   <input type="number" value={computeForm.reporting_year} onChange={(e) => setComputeForm({ ...computeForm, reporting_year: parseInt(e.target.value) })} style={inputStyle} />
                 </div>
                 <div>
-                  <label style={labelStyle}>Base GWP</label>
+                  <label style={labelStyle}>{t.gwp_lbl}</label>
                   <select value={computeForm.gwp_basis} onChange={(e) => setComputeForm({ ...computeForm, gwp_basis: e.target.value })} style={inputStyle}>
                     <option value="AR6">AR6 (recommandé)</option>
                     <option value="AR5">AR5</option>
@@ -354,7 +533,7 @@ export default function ProjectDetailPage() {
                 </div>
                 <div style={{ display: "flex", alignItems: "flex-end" }}>
                   <button type="button" onClick={handleReconcile} style={{ ...ghostBtn, width: "100%" }}>
-                    Vérifier réconciliation
+                    {t.reconcile_btn}
                   </button>
                 </div>
                 {computeError && (
@@ -364,7 +543,7 @@ export default function ProjectDetailPage() {
                 )}
                 <div style={{ gridColumn: "1 / -1" }}>
                   <button type="submit" disabled={computing || proposed.length > 0} style={{ ...primaryBtn, opacity: proposed.length > 0 ? 0.5 : 1, width: "100%", padding: "0.8rem" }}>
-                    {computing ? "Calcul en cours..." : "Lancer le calcul d'émissions"}
+                    {computing ? t.computing : t.compute_btn}
                   </button>
                 </div>
               </form>
@@ -372,7 +551,7 @@ export default function ProjectDetailPage() {
 
             {anomalies.length > 0 && (
               <div style={{ ...sectionCard, marginTop: "1.5rem" }}>
-                <h3 style={sectionTitle}>Anomalies détectées</h3>
+                <h3 style={sectionTitle}>{t.anomalies_title}</h3>
                 {anomalies.map((a) => (
                   <div key={a.id} style={{
                     display: "flex", gap: "0.75rem", alignItems: "flex-start",
@@ -399,10 +578,8 @@ export default function ProjectDetailPage() {
             {/* Google export opt-in — §0.11: default OFF */}
             <div style={{ ...sectionCard, marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--navy)" }}>Export Google Docs</div>
-                <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.2rem" }}>
-                  Désactivé par défaut (§0.11). Seul le rapport agrégé est envoyé — aucune donnée brute.
-                </div>
+                <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--navy)" }}>{t.export_title}</div>
+                <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.2rem" }}>{t.export_desc}</div>
               </div>
               <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
                 <div
@@ -420,7 +597,7 @@ export default function ProjectDetailPage() {
                   }} />
                 </div>
                 <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text)" }}>
-                  {googleExportEnabled ? "Activé" : "Désactivé"}
+                  {googleExportEnabled ? t.enabled : t.disabled}
                 </span>
               </label>
             </div>
@@ -428,13 +605,14 @@ export default function ProjectDetailPage() {
             {snapshots.length === 0 ? (
               <div style={{ textAlign: "center", padding: "3rem", color: "var(--muted)" }}>
                 <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📈</div>
-                <p>Aucun snapshot. Lancez un calcul depuis l&apos;onglet &quot;Calcul&quot;.</p>
+                <p>{t.no_snapshots}</p>
               </div>
             ) : (
               snapshots.map((snap) => (
                 <SnapshotCard
                   key={snap.id}
                   snap={snap}
+                  t={t}
                   googleExportEnabled={googleExportEnabled}
                   exporting={exporting[snap.id] ?? false}
                   exportUrl={exportUrls[snap.id]}
@@ -455,11 +633,15 @@ function FactRow({
   onValidate,
   validating,
   error,
+  validateLabel,
+  badgeLabel,
 }: {
   fact: ActivityFact;
   onValidate?: () => void;
   validating?: boolean;
   error?: string;
+  validateLabel: string;
+  badgeLabel: string;
 }) {
   const isProposed = fact.state === "proposed";
   return (
@@ -494,12 +676,12 @@ function FactRow({
               whiteSpace: "nowrap", opacity: validating ? 0.6 : 1,
             }}
           >
-            {validating ? "..." : "Valider"}
+            {validating ? "…" : validateLabel}
           </button>
         )}
         {!isProposed && (
           <span style={{ fontSize: "0.75rem", background: "#f0fdf4", color: "#166534", padding: "0.2rem 0.55rem", borderRadius: "9999px", fontWeight: 700, whiteSpace: "nowrap" }}>
-            ✓ validé
+            {badgeLabel}
           </span>
         )}
       </div>
@@ -508,8 +690,11 @@ function FactRow({
   );
 }
 
+type TKeys = typeof T["fr"];
+
 function SnapshotCard({
   snap,
+  t,
   googleExportEnabled,
   exporting,
   exportUrl,
@@ -517,6 +702,7 @@ function SnapshotCard({
   onGoogleExport,
 }: {
   snap: ReportSnapshot;
+  t: TKeys;
   googleExportEnabled: boolean;
   exporting: boolean;
   exportUrl?: string;
@@ -533,17 +719,17 @@ function SnapshotCard({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem", flexWrap: "wrap", gap: "0.75rem" }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--navy)" }}>
-            Snapshot {snap.reporting_year}
+            {t.snap_label} {snap.reporting_year}
           </div>
           <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.2rem" }}>
-            {new Date(snap.created_at).toLocaleString("fr-FR")} · {snap.gwp_basis} · hash: <code style={{ fontSize: "0.75rem" }}>{snap.state_hash.slice(0, 16)}…</code>
+            {new Date(snap.created_at).toLocaleString()} · {snap.gwp_basis} · {t.hash_lbl}: <code style={{ fontSize: "0.75rem" }}>{snap.state_hash.slice(0, 16)}…</code>
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <button onClick={onDownload} style={primaryBtn}>⬇ Télécharger DOCX</button>
+          <button onClick={onDownload} style={primaryBtn}>{t.download_btn}</button>
           {googleExportEnabled && (
             <button onClick={onGoogleExport} disabled={exporting} style={ghostBtn}>
-              {exporting ? "Export..." : "Google Docs →"}
+              {exporting ? t.exporting : t.google_btn}
             </button>
           )}
         </div>
@@ -551,18 +737,18 @@ function SnapshotCard({
 
       {exportUrl && (
         <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "0.375rem", padding: "0.6rem 0.85rem", fontSize: "0.85rem", marginBottom: "1rem" }}>
-          Document Google : <a href={exportUrl} target="_blank" rel="noopener noreferrer">{exportUrl}</a>
+          {t.google_doc}: <a href={exportUrl} target="_blank" rel="noopener noreferrer">{exportUrl}</a>
         </div>
       )}
 
       {/* KPI cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "1rem" }}>
-        <KpiCard label="Total CO₂e" value={`${Number(totalVal).toFixed(2)} t`} accent="var(--navy)" />
+        <KpiCard label={t.total} value={`${Number(totalVal).toFixed(2)} t`} accent="var(--navy)" />
         {snap.scope2_location_t && (
-          <KpiCard label="Scope 2 location" value={`${Number(snap.scope2_location_t).toFixed(2)} t`} accent="var(--accent)" />
+          <KpiCard label={t.scope2_loc} value={`${Number(snap.scope2_location_t).toFixed(2)} t`} accent="var(--accent)" />
         )}
         {snap.scope2_market_t && (
-          <KpiCard label="Scope 2 marché" value={`${Number(snap.scope2_market_t).toFixed(2)} t`} accent="var(--accent)" />
+          <KpiCard label={t.scope2_mkt} value={`${Number(snap.scope2_market_t).toFixed(2)} t`} accent="var(--accent)" />
         )}
       </div>
 
@@ -570,7 +756,7 @@ function SnapshotCard({
       {scopeEntries.length > 0 && (
         <div style={{ marginBottom: "0.75rem" }}>
           <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.5rem" }}>
-            Répartition par scope
+            {t.scope_title}
           </div>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             {scopeEntries.map(([scope, val]) => {
@@ -588,20 +774,20 @@ function SnapshotCard({
       {/* Uncertainty (separate from totals — §0.2) */}
       {snap.uncertainty && Object.keys(snap.uncertainty).length > 0 && (
         <div style={{ fontSize: "0.78rem", color: "var(--muted)", padding: "0.5rem", background: "var(--bg)", borderRadius: "0.3rem" }}>
-          Incertitude (hors totaux, §0.2) : {JSON.stringify(snap.uncertainty)}
+          {t.uncertainty_lbl}: {JSON.stringify(snap.uncertainty)}
         </div>
       )}
 
       {/* Reconciliation flags */}
       {snap.reconciliation && (snap.reconciliation as { flags?: unknown[] }).flags?.length ? (
         <div style={{ marginTop: "0.75rem", background: "#fefce8", border: "1px solid #fde68a", borderRadius: "0.375rem", padding: "0.6rem 0.85rem", fontSize: "0.8rem", color: "#92400e" }}>
-          ⚠ Réconciliation : {JSON.stringify(snap.reconciliation)}
+          ⚠ {t.reconcile_warn}: {JSON.stringify(snap.reconciliation)}
         </div>
       ) : null}
 
       {/* AI Transparency disclosure — §0.12 */}
       <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem", fontSize: "0.72rem", color: "var(--muted-light)" }}>
-        Ce rapport a été produit avec l&apos;assistance de l&apos;IA (Adrar AI). Les facteurs d&apos;émission requièrent une validation experte. Adrar AI accélère le reporting expert — aucune garantie de conformité réglementaire automatique.
+        {t.ai_disclosure}
       </div>
     </div>
   );
@@ -664,6 +850,7 @@ const statsBar: React.CSSProperties = {
   height: "44px",
   display: "flex",
   alignItems: "center",
+  justifyContent: "space-between",
   gap: "2rem",
 };
 

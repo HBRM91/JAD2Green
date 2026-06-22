@@ -7,10 +7,14 @@ Overrides the get_db dependency to inject test connections with GUC already set.
 
 from __future__ import annotations
 
+import os
 import pathlib
 import uuid
 from collections.abc import Generator
 from typing import Annotated
+
+# Prevent startup secret-strength check from failing in test environment
+os.environ.setdefault("ADRAR_TESTING", "1")
 
 import psycopg2
 import psycopg2.extras

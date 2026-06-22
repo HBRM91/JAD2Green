@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from ..deps import DBDep, TenantDep
 from ..models.requests import FlagAnomalyRequest
@@ -23,6 +23,11 @@ def flag_anomaly(
     db: DBDep,
 ) -> AnomalyResponse:
     with db.cursor() as cur:
+        # Verify project belongs to this bureau before inserting anomaly
+        cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+        if not cur.fetchone():
+            raise HTTPException(404, "Project not found")
+
         cur.execute(
             """
             INSERT INTO anomalies
