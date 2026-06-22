@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from .routers import activity, anomalies, compute, documents, factor_sets, projects
+from .routers import activity, anomalies, compute, documents, factor_sets, projects, reports
 
 app = FastAPI(
     title="Adrar AI API",
@@ -16,6 +16,7 @@ app.include_router(factor_sets.router, tags=["factor_sets"])
 app.include_router(compute.router, tags=["compute"])
 app.include_router(anomalies.router, tags=["anomalies"])
 app.include_router(documents.router, tags=["documents"])
+app.include_router(reports.router, tags=["reports"])
 
 
 @app.get("/health")
