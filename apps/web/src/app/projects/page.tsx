@@ -165,9 +165,11 @@ export default function ProjectsPage() {
 function Topbar({ onLogout, lang, onLangChange }: { onLogout: () => void; lang: "FR" | "EN"; onLangChange: (l: "FR" | "EN") => void }) {
   return (
     <header style={topbarStyle}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
         <span style={logoChip}>JAD2</span>
-        <span style={{ fontWeight: 700, color: "var(--navy)", fontSize: "1rem" }}>Adrar AI</span>
+        <span style={{ fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>Advisory</span>
+        <span style={{ color: "var(--border)", padding: "0 0.4rem" }}>|</span>
+        <span style={{ fontWeight: 700, color: "var(--navy)", fontSize: "0.95rem" }}>Adrar AI</span>
       </div>
       <nav style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
         <span style={{ fontWeight: 600, color: "var(--navy)", fontSize: "0.875rem", borderBottom: "2px solid var(--navy)", paddingBottom: "0.1rem" }}>
@@ -194,10 +196,16 @@ function Metric({ value, label, color = "var(--navy)" }: { value: number; label:
 }
 
 function ProjectCard({ project: p, onClick }: { project: Project; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
   const colors: Record<string, string> = { active: "#16a34a", completed: "#2563eb", archived: "#94a3b8" };
   const color = colors[p.status] ?? "var(--muted)";
   return (
-    <div onClick={onClick} style={projectCardStyle}>
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ ...projectCardStyle, boxShadow: hovered ? "0 4px 16px rgba(26,46,94,0.1)" : "none", borderColor: hovered ? "var(--navy)" : "var(--border)" }}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.85rem" }}>
         <span style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color, background: `${color}18`, padding: "0.2rem 0.55rem", borderRadius: "9999px" }}>{p.status}</span>
         <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--muted)" }}>{p.reporting_year}</span>
@@ -301,6 +309,7 @@ const card: React.CSSProperties = { background: "#fff", border: "1px solid var(-
 const projectCardStyle: React.CSSProperties = {
   background: "#fff", border: "1px solid var(--border)",
   borderRadius: "0.6rem", padding: "1.25rem", cursor: "pointer",
+  transition: "box-shadow 0.15s, border-color 0.15s",
 };
 const stepCard: React.CSSProperties = {
   background: "#fff", border: "1px solid var(--border)",
