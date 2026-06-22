@@ -1,7 +1,7 @@
 # PROGRESS
 
-## Current phase: 5
-## Next phase: 6
+## Current phase: 6
+## Next phase: 7
 
 ## Done
 - [x] Phase 0 — scaffold + control files (commit: ff9bb2f)
@@ -9,7 +9,7 @@
 - [x] Phase 2 — kernel (commit: 169bcbd)
 - [x] Phase 3 — api (commit: 0b5bc7c)
 - [x] Phase 4 — ingestion (commit: 8a660f0)
-- [ ] Phase 5 — report + delivery
+- [x] Phase 5 — report + delivery (commit: 087b57a)
 - [ ] Phase 6 — ui
 - [ ] Phase 7 — hardening
 - [ ] Phase 8 — CBAM (deferred)
