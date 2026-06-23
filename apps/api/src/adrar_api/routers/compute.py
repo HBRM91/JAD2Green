@@ -68,7 +68,8 @@ def get_report_snapshot(
             SELECT id, bureau_id, project_id, reporting_year, state_hash,
                    totals_co2e, scope2_location_t, scope2_market_t,
                    computation_trace, factor_set_versions, gwp_basis,
-                   uncertainty, reconciliation, created_at
+                   uncertainty, reconciliation,
+                   gri_305_data, ndc_alignment, intensity_metrics, created_at
             FROM report_snapshots
             WHERE id = %s AND project_id = %s
             """,
@@ -95,7 +96,8 @@ def list_snapshots(
             SELECT id, bureau_id, project_id, reporting_year, state_hash,
                    totals_co2e, scope2_location_t, scope2_market_t,
                    computation_trace, factor_set_versions, gwp_basis,
-                   uncertainty, reconciliation, created_at
+                   uncertainty, reconciliation,
+                   gri_305_data, ndc_alignment, intensity_metrics, created_at
             FROM report_snapshots
             WHERE project_id = %s
             ORDER BY created_at DESC
@@ -192,5 +194,8 @@ def _row_to_snapshot(row: dict) -> ReportSnapshotResponse:
         computation_trace=row["computation_trace"],
         factor_set_versions=row["factor_set_versions"],
         reconciliation=row["reconciliation"],
+        gri_305_data=row.get("gri_305_data"),
+        ndc_alignment=row.get("ndc_alignment"),
+        intensity_metrics=row.get("intensity_metrics"),
         created_at=row["created_at"],
     )

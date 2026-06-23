@@ -528,6 +528,9 @@ export default function ProjectDetailPage() {
               )}
             </div>
 
+            {/* Manual fact proposition */}
+            <ManualFactForm projectId={projectId} token={token!} lang={lang} onAdded={(f) => setFacts((prev) => [f, ...prev])} />
+
             {/* Document list */}
             {documents.length > 0 && (
               <div style={{ ...sectionCard, marginBottom: "1.5rem" }}>
@@ -1003,6 +1006,140 @@ function Spinner() {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
       <div style={{ width: 36, height: 36, border: "3px solid var(--border)", borderTopColor: "var(--navy)", borderRadius: "50%" }} />
+    </div>
+  );
+}
+
+// ── Morocco-specific activity categories ──────────────────────────────────
+
+const MOROCCO_CATEGORIES = [
+  { key: "energie_butane", scope: 1, label: { fr: "Énergie — Butane (bouteilles)", en: "Energy — Butane (cylinders)", ar: "طاقة — غاز البوتان" }, unit: "kg", hint: "bouteilles_12kg ou bouteilles_3kg" },
+  { key: "energie_gasoil", scope: 1, label: { fr: "Énergie — Gasoil", en: "Energy — Diesel", ar: "طاقة — ديزل" }, unit: "litres", hint: "" },
+  { key: "energie_fuel", scope: 1, label: { fr: "Énergie — Fuel lourd / domestique", en: "Energy — Heavy/Domestic Fuel", ar: "طاقة — وقود ثقيل" }, unit: "litres", hint: "" },
+  { key: "electricite_onee", scope: 2, label: { fr: "Électricité — ONEE réseau (location-based)", en: "Electricity — ONEE grid (location-based)", ar: "كهرباء — ONEE شبكة" }, unit: "kWh", hint: "Scope 2 location-based, FE ONEE 2023" },
+  { key: "electricite_onee_mkt", scope: 2, label: { fr: "Électricité — ONEE réseau (market-based)", en: "Electricity — ONEE grid (market-based)", ar: "كهرباء — ONEE شبكة (سوقي)" }, unit: "kWh", hint: "Scope 2 market-based" },
+  { key: "electricite_pv_autoconso", scope: 2, label: { fr: "Électricité — PV autoconsommation", en: "Electricity — On-site PV (self-consumption)", ar: "كهرباء — طاقة شمسية محلية" }, unit: "kWh", hint: "FE PV: 0.048 kgCO2e/kWh" },
+  { key: "transport_oncf_passager", scope: 3, label: { fr: "Transport — ONCF passager (train)", en: "Transport — ONCF passenger (rail)", ar: "نقل — ONCF ركاب (قطار)" }, unit: "passager.km", hint: "FE: 0.0082 kgCO2e/passager.km" },
+  { key: "transport_oncf_fret", scope: 3, label: { fr: "Transport — ONCF fret (train)", en: "Transport — ONCF freight (rail)", ar: "نقل — ONCF شحن (قطار)" }, unit: "tonne.km", hint: "" },
+  { key: "transport_grand_taxi", scope: 3, label: { fr: "Transport — Grand taxi", en: "Transport — Grand taxi", ar: "نقل — سيارة أجرة كبيرة" }, unit: "passager.km", hint: "" },
+  { key: "transport_ctm_bus", scope: 3, label: { fr: "Transport — CTM / bus longue distance", en: "Transport — CTM / long-distance bus", ar: "نقل — CTM حافلة" }, unit: "passager.km", hint: "" },
+  { key: "transport_vol_domestique_ma", scope: 3, label: { fr: "Transport aérien — Vol domestique Maroc", en: "Air — Domestic flight Morocco", ar: "نقل جوي — رحلة داخلية المغرب" }, unit: "passager.km", hint: "RAM, Air Arabia Maroc" },
+  { key: "transport_vol_moyen_courrier", scope: 3, label: { fr: "Transport aérien — Vol moyen-courrier", en: "Air — Medium-haul flight", ar: "نقل جوي — رحلة متوسطة" }, unit: "passager.km", hint: "" },
+  { key: "transport_maritime", scope: 3, label: { fr: "Transport maritime — Conteneur", en: "Maritime — Container shipping", ar: "نقل بحري — حاوية" }, unit: "tonne.km", hint: "" },
+  { key: "dechets_decharge_controlee_biogaz", scope: 3, label: { fr: "Déchets — Décharge contrôlée (avec biogaz)", en: "Waste — Controlled landfill (with biogas)", ar: "نفايات — مطرح مراقب (مع الغاز الحيوي)" }, unit: "kg", hint: "FE: 0.47 kgCO2e/kg" },
+  { key: "dechets_decharge_sauvage", scope: 3, label: { fr: "Déchets — Décharge sauvage", en: "Waste — Uncontrolled dump", ar: "نفايات — مطرح عشوائي" }, unit: "kg", hint: "FE: 1.15 kgCO2e/kg — spécifique Maroc" },
+  { key: "dechets_incineration", scope: 3, label: { fr: "Déchets — Incinération", en: "Waste — Incineration", ar: "نفايات — حرق" }, unit: "kg", hint: "" },
+  { key: "eau_onee", scope: 3, label: { fr: "Eau — ONEE eau potable", en: "Water — ONEE drinking water", ar: "ماء — ONEE مياه صالحة للشرب" }, unit: "m3", hint: "FE: 0.305 kgCO2e/m3" },
+  { key: "industrie_ciment_clinker", scope: 1, label: { fr: "Industrie — Clinker (calcination)", en: "Industry — Clinker (calcination)", ar: "صناعة — الكلنكر (حرق الجير)" }, unit: "kg_clinker", hint: "Ciments du Maroc, Lafarge, Holcim" },
+  { key: "industrie_phosphate_ocp", scope: 1, label: { fr: "Industrie — Phosphate OCP (calcination)", en: "Industry — OCP Phosphate (calcination)", ar: "صناعة — فوسفات OCP" }, unit: "kg", hint: "Procédé OCP spécifique Maroc" },
+  { key: "industrie_acier_sonasid", scope: 1, label: { fr: "Industrie — Acier Sonasid (four électrique)", en: "Industry — Sonasid steel (EAF)", ar: "صناعة — فولاذ Sonasid (فرن كهربائي)" }, unit: "kg", hint: "FE: 0.395 kgCO2e/kg" },
+  { key: "frigorigene_r410a", scope: 1, label: { fr: "Frigorigènes — R-410A (fuite)", en: "Refrigerants — R-410A (fugitive)", ar: "مبردات — R-410A (تسرب)" }, unit: "kg", hint: "GWP AR6: 2088 — climatisation inverter" },
+  { key: "frigorigene_r22", scope: 1, label: { fr: "Frigorigènes — R-22 (fuite)", en: "Refrigerants — R-22 (fugitive)", ar: "مبردات — R-22 (تسرب)" }, unit: "kg", hint: "GWP AR6: 1760 — encore répandu au Maroc (Protocole Montréal)" },
+  { key: "agriculture_bovins", scope: 1, label: { fr: "Agriculture — Bovins (fermentation entérique)", en: "Agriculture — Cattle (enteric fermentation)", ar: "زراعة — أبقار (تخمر هضمي)" }, unit: "animal.jour", hint: "FE Maroc: 1.57 kgCO2e/animal.jour" },
+  { key: "agriculture_engrais_n2o", scope: 1, label: { fr: "Agriculture — Engrais azotés (N₂O)", en: "Agriculture — Nitrogen fertilisers (N₂O)", ar: "زراعة — أسمدة نيتروجينية (N₂O)" }, unit: "kg_N", hint: "FE: 4.417 kgCO2e/kg_N" },
+  { key: "btp_beton", scope: 3, label: { fr: "BTP — Béton B25 (matériaux)", en: "Construction — Concrete B25 (materials)", ar: "بناء — خرسانة B25" }, unit: "kg", hint: "" },
+  { key: "achats_papier", scope: 3, label: { fr: "Achats — Papier de bureau", en: "Purchases — Office paper", ar: "مشتريات — ورق مكتبي" }, unit: "kg", hint: "FE: 0.934 kgCO2e/kg" },
+  { key: "achats_ordinateur", scope: 3, label: { fr: "Achats — Ordinateur portable (amortissement)", en: "Purchases — Laptop (amortisation)", ar: "مشتريات — حاسوب محمول" }, unit: "unité", hint: "FE: 316 kgCO2e/unité" },
+  { key: "deplacements_repas", scope: 3, label: { fr: "Déplacements — Repas (restaurant)", en: "Business travel — Meals", ar: "تنقلات — وجبات طعام" }, unit: "repas", hint: "FE: 2.6 kgCO2e/repas" },
+];
+
+function ManualFactForm({ projectId, token, lang, onAdded }: {
+  projectId: string;
+  token: string;
+  lang: Lang;
+  onAdded: (f: ActivityFact) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [cat, setCat] = useState(MOROCCO_CATEGORIES[0].key);
+  const [value, setValue] = useState("");
+  const [desc, setDesc] = useState("");
+  const [periodStart, setPeriodStart] = useState(`${new Date().getFullYear()}-01-01`);
+  const [periodEnd, setPeriodEnd] = useState(`${new Date().getFullYear()}-12-31`);
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const selected = MOROCCO_CATEGORIES.find((c) => c.key === cat) ?? MOROCCO_CATEGORIES[0];
+  const lbl = { fr: "Proposer un fait (manuel)", en: "Propose a fact (manual)", ar: "اقتراح حقيقة (يدوي)" }[lang];
+  const addLbl = { fr: "+ Saisie manuelle", en: "+ Manual entry", ar: "+ إدخال يدوي" }[lang];
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true); setErr(null);
+    try {
+      const fact = await apiJson<ActivityFact>(`/projects/${projectId}/activity`, token, {
+        method: "POST",
+        body: JSON.stringify({
+          category: selected.key,
+          description: desc || selected.label[lang],
+          activity_value: value,
+          activity_unit: selected.unit,
+          scope: selected.scope,
+          scope2_type: selected.scope === 2 ? (cat.includes("_mkt") ? "market" : "location") : null,
+          period_start: periodStart,
+          period_end: periodEnd,
+          state: "proposed",
+        }),
+      });
+      onAdded(fact);
+      setValue(""); setDesc(""); setOpen(false);
+    } catch {
+      setErr(lang === "fr" ? "Impossible d'ajouter ce fait." : lang === "ar" ? "تعذر إضافة هذه الحقيقة." : "Failed to add this fact.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: "1.5rem" }}>
+      {!open ? (
+        <button onClick={() => setOpen(true)} style={{ ...ghostBtn, fontSize: "0.82rem" }}>{addLbl}</button>
+      ) : (
+        <div style={{ ...sectionCard, borderLeft: "4px solid var(--accent)" }}>
+          <h3 style={{ ...sectionTitle, color: "var(--accent)" }}>{lbl}</h3>
+          <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.85rem" }}>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>{lang === "fr" ? "Catégorie Maroc" : lang === "ar" ? "الفئة (المغرب)" : "Category (Morocco)"}</label>
+              <select value={cat} onChange={(e) => setCat(e.target.value)} style={inputStyle}>
+                {MOROCCO_CATEGORIES.map((c) => (
+                  <option key={c.key} value={c.key}>{c.label[lang]}</option>
+                ))}
+              </select>
+              {selected.hint && (
+                <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: "0.25rem" }}>{selected.hint}</div>
+              )}
+            </div>
+            <div>
+              <label style={labelStyle}>{lang === "fr" ? "Valeur" : lang === "ar" ? "القيمة" : "Value"} ({selected.unit})</label>
+              <input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} style={inputStyle} placeholder="0" />
+            </div>
+            <div>
+              <label style={labelStyle}>{lang === "fr" ? "Scope" : "Scope"}</label>
+              <input readOnly value={`Scope ${selected.scope}`} style={{ ...inputStyle, background: "var(--bg)", color: "var(--muted)" }} />
+            </div>
+            <div>
+              <label style={labelStyle}>{lang === "fr" ? "Début période" : lang === "ar" ? "بداية الفترة" : "Period start"}</label>
+              <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>{lang === "fr" ? "Fin période" : lang === "ar" ? "نهاية الفترة" : "Period end"}</label>
+              <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>{lang === "fr" ? "Description (optionnel)" : lang === "ar" ? "الوصف (اختياري)" : "Description (optional)"}</label>
+              <input value={desc} onChange={(e) => setDesc(e.target.value)} style={inputStyle} placeholder={selected.label[lang]} />
+            </div>
+            {err && <div style={{ gridColumn: "1 / -1", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", color: "var(--red)", fontSize: "0.82rem" }}>{err}</div>}
+            <div style={{ gridColumn: "1 / -1", display: "flex", gap: "0.75rem" }}>
+              <button type="submit" disabled={submitting} style={primaryBtn}>
+                {submitting ? "…" : (lang === "fr" ? "Proposer" : lang === "ar" ? "اقتراح" : "Propose")}
+              </button>
+              <button type="button" onClick={() => { setOpen(false); setErr(null); }} style={ghostBtn}>
+                {lang === "fr" ? "Annuler" : lang === "ar" ? "إلغاء" : "Cancel"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

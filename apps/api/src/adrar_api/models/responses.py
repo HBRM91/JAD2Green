@@ -12,6 +12,10 @@ class ClientResponse(BaseModel):
     bureau_id: str
     name: str
     sector: str | None
+    naics_code: str | None = None
+    secteur_maroc: str | None = None
+    is_listed_bvc: bool = False
+    rse_reporting_required: bool = False
     created_at: datetime
 
 
@@ -23,6 +27,11 @@ class ProjectResponse(BaseModel):
     reporting_year: int
     methodology_id: str
     status: str
+    reporting_frameworks: list[str] | None = None
+    sector_code: str | None = None
+    language: str | None = None
+    ndc_target_year: int | None = None
+    ndc_baseline_year: int | None = None
     created_at: datetime
 
 
@@ -104,4 +113,7 @@ class ReportSnapshotResponse(BaseModel):
     computation_trace: list[dict[str, Any]]
     factor_set_versions: list[str]
     reconciliation: dict[str, Any]
+    gri_305_data: dict[str, Any] | None = None
+    ndc_alignment: dict[str, Any] | None = None
+    intensity_metrics: dict[str, Any] | None = None
     created_at: datetime
