@@ -892,7 +892,147 @@ function RseAmeeTab({ projectId, token, lang, project, snapshots }: {
               </div>
             </div>
           )}
+          {/* RSE score entry form (BVC piliers E/S/G) */}
+          <div style={{ marginTop: "1.5rem" }}>
+            <RseScoreForm projectId={projectId} token={token} lang={lang} year={lastSnap.reporting_year} ghgScope1={gri?.["305-1"] ?? Number(totals["scope1"] ?? 0)} ghgScope2={gri?.["305-2-loc"] ?? Number(totals["scope2_location"] ?? 0)} ghgScope3={gri?.["305-3"] ?? Number(totals["scope3"] ?? 0)} />
+          </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function RseScoreForm({ projectId, token, lang, year, ghgScope1, ghgScope2, ghgScope3 }: {
+  projectId: string;
+  token: string;
+  lang: Lang;
+  year: number;
+  ghgScope1: number;
+  ghgScope2: number;
+  ghgScope3: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    e_energy_total: "", e_energy_renew: "",
+    e_water_total: "", e_water_recycle: "",
+    e_waste_total: "", e_waste_recycle: "",
+    s_employees_total: "", s_women_pct: "", s_training_hours: "", s_accidents_rate: "",
+    g_board_women_pct: "", g_independent_pct: "",
+    notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const openLbl = { fr: `Saisir données RSE ${year} (BVC Piliers E/S/G)`, en: `Enter RSE data ${year} (BVC Pillars E/S/G)`, ar: `إدخال بيانات RSE ${year}` }[lang];
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true); setErr(null);
+    try {
+      const n = (v: string) => v === "" ? null : Number(v);
+      await apiJson(`/projects/${projectId}/rse`, token, {
+        method: "POST",
+        body: JSON.stringify({
+          reporting_year: year,
+          e_ghg_scope1: ghgScope1, e_ghg_scope2: ghgScope2, e_ghg_scope3: ghgScope3,
+          e_energy_total: n(form.e_energy_total), e_energy_renew: n(form.e_energy_renew),
+          e_water_total: n(form.e_water_total), e_water_recycle: n(form.e_water_recycle),
+          e_waste_total: n(form.e_waste_total), e_waste_recycle: n(form.e_waste_recycle),
+          s_employees_total: n(form.s_employees_total), s_women_pct: n(form.s_women_pct),
+          s_training_hours: n(form.s_training_hours), s_accidents_rate: n(form.s_accidents_rate),
+          g_board_women_pct: n(form.g_board_women_pct), g_independent_pct: n(form.g_independent_pct),
+          notes: form.notes || null,
+        }),
+      });
+      setSaved(true); setOpen(false);
+    } catch {
+      setErr(lang === "fr" ? "Erreur de sauvegarde" : lang === "ar" ? "خطأ في الحفظ" : "Save error");
+    } finally { setSaving(false); }
+  }
+
+  const inputSm: React.CSSProperties = { ...inputStyle, padding: "0.4rem 0.65rem", fontSize: "0.85rem" };
+  const lbl2 = (fr: string, en: string, ar: string) => lang === "fr" ? fr : lang === "ar" ? ar : en;
+
+  return (
+    <div style={sectionCard}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+        <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)" }}>
+          {lbl2("Rapport RSE BVC — Saisie données complémentaires", "BVC RSE Report — Supplementary data entry", "تقرير RSE BVC — إدخال بيانات تكميلية")}
+        </div>
+        {saved && <span style={{ fontSize: "0.75rem", color: "var(--green)", fontWeight: 700 }}>✓ {lbl2("Sauvegardé", "Saved", "تم الحفظ")}</span>}
+      </div>
+      {!open ? (
+        <button onClick={() => setOpen(true)} style={{ ...ghostBtn, fontSize: "0.82rem" }}>{openLbl}</button>
+      ) : (
+        <form onSubmit={handleSave}>
+          {/* Pilier E — Environnemental */}
+          <div style={{ marginBottom: "1rem" }}>
+            <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", background: "#eff6ff", padding: "0.3rem 0.6rem", borderRadius: "0.25rem" }}>
+              E — {lbl2("Environnemental", "Environmental", "بيئي")}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.6rem" }}>
+              {[
+                { key: "e_energy_total", label: lbl2("Énergie totale (TEP)", "Total energy (TEP)", "طاقة كلية (TEP)") },
+                { key: "e_energy_renew", label: lbl2("Énergie renouvelable (TEP)", "Renewable energy (TEP)", "طاقة متجددة (TEP)") },
+                { key: "e_water_total", label: lbl2("Eau consommée (m³)", "Water consumed (m³)", "ماء مستهلك (m³)") },
+                { key: "e_water_recycle", label: lbl2("Eau recyclée (m³)", "Water recycled (m³)", "ماء معاد تدوير (m³)") },
+                { key: "e_waste_total", label: lbl2("Déchets générés (t)", "Waste generated (t)", "نفايات منتجة (t)") },
+                { key: "e_waste_recycle", label: lbl2("Déchets valorisés (t)", "Waste valorised (t)", "نفايات مُقيَّمة (t)") },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label style={{ ...labelStyle, marginBottom: "0.2rem" }}>{label}</label>
+                  <input type="number" step="any" value={(form as Record<string, string>)[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} style={inputSm} placeholder="0" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Pilier S — Social */}
+          <div style={{ marginBottom: "1rem" }}>
+            <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", background: "#f5f3ff", padding: "0.3rem 0.6rem", borderRadius: "0.25rem" }}>
+              S — {lbl2("Social", "Social", "اجتماعي")}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.6rem" }}>
+              {[
+                { key: "s_employees_total", label: lbl2("Effectif ETP", "Employees (FTE)", "الموظفون ETP") },
+                { key: "s_women_pct", label: lbl2("% Femmes", "% Women", "% نساء") },
+                { key: "s_training_hours", label: lbl2("Heures formation/ETP", "Training hours/FTE", "ساعات تدريب/ETP") },
+                { key: "s_accidents_rate", label: lbl2("Taux fréquence accidents", "Accident frequency rate", "معدل تكرار الحوادث") },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label style={{ ...labelStyle, marginBottom: "0.2rem" }}>{label}</label>
+                  <input type="number" step="any" value={(form as Record<string, string>)[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} style={inputSm} placeholder="0" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Pilier G — Gouvernance */}
+          <div style={{ marginBottom: "1rem" }}>
+            <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#b45309", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", background: "#fffbeb", padding: "0.3rem 0.6rem", borderRadius: "0.25rem" }}>
+              G — {lbl2("Gouvernance", "Governance", "حوكمة")}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.6rem" }}>
+              {[
+                { key: "g_board_women_pct", label: lbl2("% Femmes au CA", "% Women on board", "% نساء في مجلس الإدارة") },
+                { key: "g_independent_pct", label: lbl2("% Administrateurs indép.", "% Independent directors", "% مديرون مستقلون") },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label style={{ ...labelStyle, marginBottom: "0.2rem" }}>{label}</label>
+                  <input type="number" step="any" min="0" max="100" value={(form as Record<string, string>)[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} style={inputSm} placeholder="0" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: "0.75rem" }}>
+            <label style={{ ...labelStyle, marginBottom: "0.2rem" }}>{lbl2("Notes", "Notes", "ملاحظات")}</label>
+            <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={inputStyle} />
+          </div>
+          {err && <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "0.35rem", padding: "0.5rem 0.75rem", color: "var(--red)", fontSize: "0.82rem", marginBottom: "0.75rem" }}>{err}</div>}
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <button type="submit" disabled={saving} style={primaryBtn}>{saving ? "…" : lbl2("Sauvegarder RSE", "Save RSE", "حفظ RSE")}</button>
+            <button type="button" onClick={() => setOpen(false)} style={ghostBtn}>{lbl2("Annuler", "Cancel", "إلغاء")}</button>
+          </div>
+        </form>
       )}
     </div>
   );
