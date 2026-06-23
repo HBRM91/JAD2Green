@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { apiJson, apiFetch } from "@/lib/api";
-import type { ActivityFact, Project, ReportSnapshot, Anomaly } from "@/lib/types";
+import type { ActivityFact, Document, Project, ReportSnapshot, Anomaly } from "@/lib/types";
 
 type Tab = "facts" | "compute" | "results";
 type Lang = "fr" | "en";
@@ -26,6 +26,11 @@ const T = {
     upload_size_err: "Fichier trop volumineux (max 50 Mo).",
     upload_ok: "Document envoyé — extraction en cours.",
     upload_fail: "Échec de l'envoi. Veuillez réessayer.",
+    docs_title: "Documents importés",
+    doc_pending: "En attente",
+    doc_processing: "Extraction...",
+    doc_done: "✓ Extrait",
+    doc_error: "⚠ Erreur",
     proposed_title: "Faits proposés — validation requise",
     pending: (n: number) => `${n} en attente`,
     validate_notice: "Seul un consultant habilité peut valider ces faits. Chaque validation engage votre responsabilité professionnelle.",
@@ -80,6 +85,11 @@ const T = {
     upload_size_err: "File too large (max 50 MB).",
     upload_ok: "Document uploaded — extraction queued.",
     upload_fail: "Upload failed. Please retry.",
+    docs_title: "Imported Documents",
+    doc_pending: "Pending",
+    doc_processing: "Extracting...",
+    doc_done: "✓ Extracted",
+    doc_error: "⚠ Error",
     proposed_title: "Proposed Facts — Validation Required",
     pending: (n: number) => `${n} pending`,
     validate_notice: "Only an authorised consultant may validate facts. Each validation is irreversible and carries professional responsibility.",
@@ -131,6 +141,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [facts, setFacts] = useState<ActivityFact[]>([]);
   const [snapshots, setSnapshots] = useState<ReportSnapshot[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [tab, setTab] = useState<Tab>("facts");
   const [loading, setLoading] = useState(true);
@@ -169,10 +180,12 @@ export default function ProjectDetailPage() {
       apiJson<Project>(`/projects/${projectId}`, token),
       apiJson<ActivityFact[]>(`/projects/${projectId}/activity`, token),
       apiJson<ReportSnapshot[]>(`/projects/${projectId}/snapshots`, token),
-    ]).then(([proj, f, s]) => {
+      apiJson<Document[]>(`/projects/${projectId}/documents`, token).catch(() => [] as Document[]),
+    ]).then(([proj, f, s, docs]) => {
       setProject(proj);
       setFacts(f);
       setSnapshots(s);
+      setDocuments(docs);
       setComputeForm((c) => ({
         ...c,
         reporting_year: proj.reporting_year,
@@ -311,6 +324,8 @@ export default function ProjectDetailPage() {
       if (!res.ok) throw new Error();
       setUploadMsg({ text: t.upload_ok, ok: true });
       setUploadFile(null);
+      // Refresh document list
+      apiJson<Document[]>(`/projects/${projectId}/documents`, token).then(setDocuments).catch(() => {});
     } catch {
       setUploadMsg({ text: t.upload_fail, ok: false });
     } finally {
@@ -441,6 +456,43 @@ export default function ProjectDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Document list */}
+            {documents.length > 0 && (
+              <div style={{ ...sectionCard, marginBottom: "1.5rem" }}>
+                <h3 style={sectionTitle}>{t.docs_title}</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  {documents.map((doc) => {
+                    const statusLabel: Record<string, string> = {
+                      pending: t.doc_pending,
+                      processing: t.doc_processing,
+                      done: t.doc_done,
+                      error: t.doc_error,
+                    };
+                    const statusColor: Record<string, string> = {
+                      pending: "var(--muted)",
+                      processing: "var(--accent)",
+                      done: "var(--green)",
+                      error: "var(--red)",
+                    };
+                    const c = statusColor[doc.processing_status] ?? "var(--muted)";
+                    return (
+                      <div key={doc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.75rem", background: "var(--bg)", borderRadius: "0.35rem", fontSize: "0.85rem" }}>
+                        <span style={{ color: "var(--text)", fontWeight: 500 }}>{doc.original_filename}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          {doc.extraction_confidence != null && (
+                            <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>{(doc.extraction_confidence * 100).toFixed(0)}% conf.</span>
+                          )}
+                          <span style={{ fontSize: "0.72rem", fontWeight: 700, color: c, background: `${c}18`, padding: "0.15rem 0.5rem", borderRadius: "9999px" }}>
+                            {statusLabel[doc.processing_status] ?? doc.processing_status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Proposed facts — validation gate (§0.3/§0.4 — human-only trust boundary) */}
             {proposed.length > 0 && (

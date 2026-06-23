@@ -123,3 +123,27 @@ async def upload_document(
         "size_bytes": len(content),
         "status": "queued",
     }
+
+
+@router.get("/projects/{project_id}/documents")
+def list_documents(
+    project_id: str,
+    tenant: TenantDep,
+    db: DBDep,
+) -> list[dict]:
+    """List documents uploaded for a project, newest first."""
+    with db.cursor() as cur:
+        cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+        if not cur.fetchone():
+            raise HTTPException(404, "Project not found")
+        cur.execute(
+            """
+            SELECT id, bureau_id, project_id, original_filename,
+                   processing_status, extraction_confidence, created_at
+            FROM documents
+            WHERE project_id = %s
+            ORDER BY created_at DESC
+            """,
+            (project_id,),
+        )
+        return [dict(r) for r in cur.fetchall()]

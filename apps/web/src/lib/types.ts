@@ -52,6 +52,16 @@ export interface ReportSnapshot {
   created_at: string;
 }
 
+export interface Document {
+  id: string;
+  bureau_id: string;
+  project_id: string;
+  original_filename: string;
+  processing_status: "pending" | "processing" | "done" | "error";
+  extraction_confidence: number | null;
+  created_at: string;
+}
+
 export interface Anomaly {
   id: string;
   bureau_id: string;
