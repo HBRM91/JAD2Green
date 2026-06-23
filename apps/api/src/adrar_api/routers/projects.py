@@ -74,3 +74,61 @@ def get_project(project_id: str, tenant: TenantDep, db: DBDep) -> ProjectRespons
     if not row:
         raise HTTPException(404, "Project not found")
     return ProjectResponse(**row)
+
+
+@router.get("/projects/{project_id}/summary")
+def get_project_summary(project_id: str, tenant: TenantDep, db: DBDep) -> dict:
+    """Aggregated summary: last snapshot totals, anomaly count, RSE status, facts counts."""
+    with db.cursor() as cur:
+        cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
+        if not cur.fetchone():
+            raise HTTPException(404, "Project not found")
+
+        cur.execute(
+            """
+            SELECT totals_co2e, gri_305_data, ndc_alignment, created_at, reporting_year
+            FROM report_snapshots
+            WHERE project_id = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (project_id,),
+        )
+        snap = cur.fetchone()
+
+        cur.execute(
+            "SELECT state, COUNT(*) as n FROM activity_facts WHERE project_id = %s GROUP BY state",
+            (project_id,),
+        )
+        facts_by_state = {r["state"]: r["n"] for r in cur.fetchall()}
+
+        cur.execute(
+            "SELECT COUNT(*) as n FROM anomalies WHERE project_id = %s AND resolved = FALSE",
+            (project_id,),
+        )
+        open_anomalies = cur.fetchone()["n"]
+
+        cur.execute(
+            "SELECT COUNT(*) as n FROM rse_scores WHERE project_id = %s",
+            (project_id,),
+        )
+        rse_count = cur.fetchone()["n"]
+
+    return {
+        "last_snapshot": {
+            "created_at": snap["created_at"].isoformat() if snap and snap["created_at"] else None,
+            "reporting_year": snap["reporting_year"] if snap else None,
+            "totals_co2e": snap["totals_co2e"] if snap else None,
+            "gri_305_data": snap["gri_305_data"] if snap else None,
+            "ndc_progress_pct": (
+                snap["ndc_alignment"].get("progress_pct") if snap and snap["ndc_alignment"] else None
+            ),
+        } if snap else None,
+        "facts": {
+            "proposed": facts_by_state.get("proposed", 0),
+            "validated": facts_by_state.get("validated", 0),
+            "total": sum(facts_by_state.values()),
+        },
+        "open_anomalies": open_anomalies,
+        "rse_scores_count": rse_count,
+    }

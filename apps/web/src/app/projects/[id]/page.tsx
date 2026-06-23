@@ -470,6 +470,12 @@ export default function ProjectDetailPage() {
           <StatChip label={t.validated_count(validated.length)} value={validated.length} color="var(--green)" />
           <StatChip label={t.snapshots} value={snapshots.length} color="var(--accent)" />
           {anomalies.length > 0 && <StatChip label={t.anomalies_lbl} value={anomalies.length} color="var(--red)" />}
+          {snapshots[0] && (() => {
+            const totals = snapshots[0].totals_co2e ?? {};
+            const total = Number(totals["total"] ?? Object.values(totals).reduce((a, b) => a + b, 0));
+            if (total > 0) return <StatChip label={`tCO₂e ${snapshots[0].reporting_year}`} value={`${total.toFixed(1)}`} color="var(--navy)" />;
+            return null;
+          })()}
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
           {project?.reporting_frameworks?.map((fw) => (
@@ -1411,7 +1417,7 @@ function KpiCard({ label, value, accent }: { label: string; value: string; accen
   );
 }
 
-function StatChip({ label, value, color }: { label: string; value: number; color: string }) {
+function StatChip({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
       <span style={{ fontWeight: 800, fontSize: "1.1rem", color }}>{value}</span>

@@ -94,16 +94,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+
+  const now = Date.now();
+  const inCooldown = cooldownUntil != null && now < cooldownUntil;
+  const cooldownSec = inCooldown ? Math.ceil((cooldownUntil! - now) / 1000) : 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (inCooldown) return;
     setError(null);
     setLoading(true);
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (authError) {
-      // Generic message — don't leak auth internals
-      setError(t.error);
+      const next = attempts + 1;
+      setAttempts(next);
+      if (next >= 5) {
+        setCooldownUntil(Date.now() + 60_000);
+        setAttempts(0);
+        setError(lang === "fr" ? "Trop de tentatives. Veuillez patienter 60 secondes." : lang === "ar" ? "محاولات كثيرة. انتظر 60 ثانية." : "Too many attempts. Please wait 60 seconds.");
+      } else {
+        setError(t.error + (next >= 3 ? ` (${next}/5)` : ""));
+      }
     } else {
       router.push("/projects");
     }
@@ -221,8 +235,8 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-            <button type="submit" disabled={loading} style={{ ...submitBtnStyle, opacity: loading ? 0.75 : 1 }}>
-              {loading ? t.submitting : t.submit}
+            <button type="submit" disabled={loading || inCooldown} style={{ ...submitBtnStyle, opacity: (loading || inCooldown) ? 0.65 : 1 }}>
+              {loading ? t.submitting : inCooldown ? `${lang === "fr" ? "Attendre" : lang === "ar" ? "انتظر" : "Wait"} ${cooldownSec}s` : t.submit}
             </button>
           </form>
           <p style={{ marginTop: "3rem", fontSize: "0.72rem", color: "var(--muted-light)", textAlign: "center" }}>
