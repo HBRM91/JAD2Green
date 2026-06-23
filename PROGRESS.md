@@ -31,6 +31,23 @@
   - Report: GRI 305 table + NDC alignment table in DOCX
   - Narrative: Morocco-aware prompt (Loi 99-12, 47-09, NDC 2021, SNDD 2030, BVC, ONEE factor)
 
+- [x] Session 3 — continuous improvement loop (commits 460cb4e → 1ab707b):
+  - RSE score history table in RSE/AMEE tab (fetched from API, tabular display with EnR%, GHG, social KPIs)
+  - Intensity metrics display in RSE tab (from last snapshot's intensity_metrics JSONB)
+  - Emissions trend sparkline (SVG polyline, auto-hides when only 1 snapshot)
+  - Enhanced ProjectCard: framework color badges, sector code, language chip
+  - Clients portfolio section on projects page (BVC/RSE badges, project count per client)
+  - Login page: progressive lockout UX (5 attempts → 60s cooldown, attempt counter shown)
+  - Project summary API endpoint GET /projects/{id}/summary (facts counts, anomalies, RSE count, last snapshot)
+  - Total CO2e display in project detail stats bar (from latest snapshot)
+  - GRI 305-4 intensity computation: _compute_intensity_metrics() in compute_svc.py uses project_intensity_config
+  - Intensity denominator API: GET /intensity-denominators, GET/POST /projects/{id}/intensity-config
+  - Intensity config UI: collapsible form in RSE tab, shows configured denominators as pills
+  - DOCX report: GRI 305-4 intensity table section (when intensity_metrics present)
+  - DOCX report: AMEE Bilan Énergétique section (when amee in reporting_frameworks)
+  - Security: validate_path_uuid() helper in deps.py, applied to all new API endpoints
+  - Kernel tests: 25/25 pass
+
 ## Deviations from spec
 - PostgreSQL run for tests uses portable pg17 at ~/AppData/Local/pg17_portable (no system install).
   Tests connect as 'app_user' (non-superuser) to exercise RLS, matching Supabase 'authenticated' role.
