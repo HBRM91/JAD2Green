@@ -157,6 +157,54 @@ export default function ProjectsPage() {
             ))}
           </div>
         </div>
+
+        {/* Footer */}
+        <footer style={{ marginTop: "4rem", borderTop: "1px solid var(--border)", paddingTop: "2rem", paddingBottom: "2rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "2rem" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <span style={{ ...logoChip, fontSize: "0.65rem" }}>JAD2</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600, letterSpacing: "0.08em" }}>Advisory</span>
+              </div>
+              <p style={{ fontSize: "0.78rem", color: "var(--muted-light)", margin: 0, maxWidth: 280, lineHeight: 1.5 }}>
+                {lang === "FR"
+                  ? "Plateforme de reporting carbone réglementaire pour bureaux d'étude. Calcul ISO 14064 conforme et traçable."
+                  : "Regulatory carbon reporting platform for consulting firms. ISO 14064 compliant and traceable computation."}
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "3rem" }}>
+              <div>
+                <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.6rem" }}>
+                  {lang === "FR" ? "Conformité" : "Compliance"}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                  {["ISO 14064-1", "Bilan Carbone® ADEME", "IPCC AR6 GWP"].map((item) => (
+                    <span key={item} style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{item}</span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.6rem" }}>
+                  {lang === "FR" ? "Sécurité" : "Security"}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                  {[
+                    lang === "FR" ? "Isolation multi-tenant RLS" : "Multi-tenant RLS isolation",
+                    lang === "FR" ? "Chiffrement données at rest" : "Data at rest encryption",
+                    lang === "FR" ? "Hébergement en région" : "In-region hosting",
+                  ].map((item) => (
+                    <span key={item} style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{item}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: "1.5rem", fontSize: "0.72rem", color: "var(--muted-light)", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
+            {lang === "FR"
+              ? "© JAD2 Advisory · Adrar AI · Ce rapport contient une assistance IA — les facteurs d'émission requièrent une validation experte (§0.12)."
+              : "© JAD2 Advisory · Adrar AI · This report contains AI assistance — emission factors require expert validation (§0.12)."}
+          </div>
+        </footer>
       </div>
     </div>
   );
