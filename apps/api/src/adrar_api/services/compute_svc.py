@@ -267,6 +267,40 @@ def _compute_ndc_alignment(
     }
 
 
+def _compute_intensity_metrics(
+    cur: psycopg2.extensions.cursor,
+    project_id: str,
+    result: object,
+    reporting_year: int,
+) -> dict | None:
+    """
+    GRI 305-4: Compute intensity metrics using project_intensity_config.
+    intensity = total_co2e / denominator_value for each configured denominator.
+    """
+    cur.execute(
+        """
+        SELECT pic.denominator_type, pic.denominator_value, id.unit, id.description
+        FROM project_intensity_config pic
+        JOIN intensity_denominators id ON id.code = pic.denominator_type
+        WHERE pic.project_id = %s AND pic.reporting_year = %s AND pic.denominator_value > 0
+        """,
+        (project_id, reporting_year),
+    )
+    rows = cur.fetchall()
+    if not rows:
+        return None
+
+    total_co2e = float(result.total_co2e)
+    if total_co2e == 0:
+        return None
+
+    metrics: dict = {}
+    for r in rows:
+        key = f"{r['denominator_type']}_{r['unit']}"
+        metrics[key] = round(total_co2e / float(r["denominator_value"]), 6)
+    return metrics if metrics else None
+
+
 def run_compute_and_persist(
     conn: psycopg2.extensions.connection,
     project_id: str,
@@ -345,6 +379,7 @@ def run_compute_and_persist(
         # GRI 305 auto-derivation (Morocco reporting enhancement)
         gri_305 = _compute_gri_305(result)
         ndc = _compute_ndc_alignment(cur, project_id, result, reporting_year)
+        intensity = _compute_intensity_metrics(cur, project_id, result, reporting_year)
 
         cur.execute(
             """
@@ -352,8 +387,9 @@ def run_compute_and_persist(
                 (bureau_id, project_id, reporting_year, state_hash,
                  totals_co2e, scope2_location_t, scope2_market_t,
                  computation_trace, factor_set_versions, gwp_basis,
-                 uncertainty, reconciliation, gri_305_data, ndc_alignment, generated_by)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'{}', %s, %s, %s)
+                 uncertainty, reconciliation, gri_305_data, ndc_alignment,
+                 intensity_metrics, generated_by)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'{}', %s, %s, %s, %s)
             RETURNING id, bureau_id, project_id, reporting_year, state_hash,
                       totals_co2e, scope2_location_t, scope2_market_t,
                       computation_trace, factor_set_versions, gwp_basis,
@@ -374,6 +410,7 @@ def run_compute_and_persist(
                 json.dumps(_uncertainty_to_dict(result.uncertainty)),
                 json.dumps(gri_305) if gri_305 else None,
                 json.dumps(ndc) if ndc else None,
+                json.dumps(intensity) if intensity else None,
                 user_id,
             ),
         )

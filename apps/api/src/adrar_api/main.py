@@ -9,7 +9,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from .limiter import limiter
-from .routers import activity, anomalies, compute, documents, factor_sets, projects, reports, rse
+from .routers import activity, anomalies, compute, documents, factor_sets, intensity, projects, reports, rse
 
 app = FastAPI(
     title="Adrar AI API",
@@ -63,6 +63,7 @@ app.include_router(anomalies.router, tags=["anomalies"])
 app.include_router(documents.router, tags=["documents"])
 app.include_router(reports.router, tags=["reports"])
 app.include_router(rse.router, tags=["rse"])
+app.include_router(intensity.router, tags=["intensity"])
 
 
 @app.get("/health")

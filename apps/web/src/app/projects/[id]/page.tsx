@@ -800,13 +800,23 @@ function RseAmeeTab({ projectId, token, lang, project, snapshots }: {
 }) {
   const [rseScores, setRseScores] = useState<RseScore[]>([]);
   const [rseLoading, setRseLoading] = useState(true);
+  const [intensityDenominators, setIntensityDenominators] = useState<{ code: string; description: string; unit: string; sector: string | null }[]>([]);
+  const [intensityConfig, setIntensityConfig] = useState<{ denominator_type: string; denominator_value: number; reporting_year: number; unit: string }[]>([]);
+  const [showIntensityForm, setShowIntensityForm] = useState(false);
+  const [intensityForm, setIntensityForm] = useState({ denominator_type: "", denominator_value: "", reporting_year: new Date().getFullYear() });
+  const [savingIntensity, setSavingIntensity] = useState(false);
 
   useEffect(() => {
     setRseLoading(true);
-    apiJson(`/projects/${projectId}/rse`, token)
-      .then((data) => setRseScores(data as RseScore[]))
-      .catch(() => {})
-      .finally(() => setRseLoading(false));
+    Promise.all([
+      apiJson(`/projects/${projectId}/rse`, token),
+      apiJson(`/intensity-denominators`, token).catch(() => []),
+      apiJson(`/projects/${projectId}/intensity-config`, token).catch(() => []),
+    ]).then(([rse, denoms, cfg]) => {
+      setRseScores(rse as RseScore[]);
+      setIntensityDenominators(denoms as typeof intensityDenominators);
+      setIntensityConfig(cfg as typeof intensityConfig);
+    }).catch(() => {}).finally(() => setRseLoading(false));
   }, [projectId, token]);
 
   const lastSnap = snapshots[0];
@@ -933,6 +943,63 @@ function RseAmeeTab({ projectId, token, lang, project, snapshots }: {
               </div>
             </div>
           )}
+          {/* GRI 305-4 Intensity config */}
+          <div style={{ ...sectionCard, marginTop: "1.5rem", borderTop: "3px solid #7c3aed" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+              <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)" }}>
+                {lang === "fr" ? "Dénominateurs d'intensité (GRI 305-4)" : lang === "ar" ? "مقامات الكثافة (GRI 305-4)" : "Intensity denominators (GRI 305-4)"}
+              </div>
+              <button onClick={() => setShowIntensityForm((v) => !v)} style={{ ...ghostBtn, fontSize: "0.78rem" }}>
+                {showIntensityForm ? (lang === "fr" ? "Fermer" : "Close") : (lang === "fr" ? "+ Configurer" : lang === "ar" ? "+ إعداد" : "+ Configure")}
+              </button>
+            </div>
+            {intensityConfig.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: showIntensityForm ? "0.75rem" : 0 }}>
+                {intensityConfig.map((c) => (
+                  <span key={`${c.denominator_type}-${c.reporting_year}`} style={{ fontSize: "0.78rem", background: "#f5f3ff", border: "1px solid #ede9fe", borderRadius: "0.375rem", padding: "0.25rem 0.6rem", color: "#7c3aed", fontWeight: 600 }}>
+                    {c.denominator_type} = {c.denominator_value} {c.unit} ({c.reporting_year})
+                  </span>
+                ))}
+              </div>
+            )}
+            {showIntensityForm && (
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setSavingIntensity(true);
+                try {
+                  const res = await apiJson(`/projects/${projectId}/intensity-config`, token, {
+                    method: "POST",
+                    body: JSON.stringify({ denominator_type: intensityForm.denominator_type, denominator_value: Number(intensityForm.denominator_value), reporting_year: intensityForm.reporting_year }),
+                  }) as { denominator_type: string; denominator_value: number; reporting_year: number; unit?: string };
+                  setIntensityConfig((prev) => {
+                    const filtered = prev.filter((c) => !(c.denominator_type === res.denominator_type && c.reporting_year === res.reporting_year));
+                    return [...filtered, { ...res, unit: res.unit ?? "" }];
+                  });
+                  setShowIntensityForm(false);
+                } catch {} finally { setSavingIntensity(false); }
+              }} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "0.5rem", alignItems: "end" }}>
+                <div>
+                  <label style={{ ...labelStyle, marginBottom: "0.2rem", fontSize: "0.7rem" }}>{lang === "fr" ? "Type" : "Type"}</label>
+                  <select value={intensityForm.denominator_type} onChange={(e) => setIntensityForm({ ...intensityForm, denominator_type: e.target.value })} required style={{ ...inputStyle, padding: "0.4rem", fontSize: "0.82rem" }}>
+                    <option value="">--</option>
+                    {intensityDenominators.map((d) => <option key={d.code} value={d.code}>{d.description} ({d.unit})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, marginBottom: "0.2rem", fontSize: "0.7rem" }}>{lang === "fr" ? "Valeur" : "Value"}</label>
+                  <input type="number" step="any" required value={intensityForm.denominator_value} onChange={(e) => setIntensityForm({ ...intensityForm, denominator_value: e.target.value })} style={{ ...inputStyle, padding: "0.4rem", fontSize: "0.82rem" }} placeholder="0" />
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, marginBottom: "0.2rem", fontSize: "0.7rem" }}>{lang === "fr" ? "Année" : "Year"}</label>
+                  <input type="number" required value={intensityForm.reporting_year} onChange={(e) => setIntensityForm({ ...intensityForm, reporting_year: Number(e.target.value) })} style={{ ...inputStyle, padding: "0.4rem", fontSize: "0.82rem" }} />
+                </div>
+                <button type="submit" disabled={savingIntensity} style={{ ...primaryBtn, padding: "0.45rem 0.85rem", fontSize: "0.82rem" }}>
+                  {savingIntensity ? "…" : "OK"}
+                </button>
+              </form>
+            )}
+          </div>
+
           {/* RSE historical scores */}
           {!rseLoading && rseScores.length > 0 && (
             <div style={{ ...sectionCard, marginTop: "1.5rem" }}>
