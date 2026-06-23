@@ -737,7 +737,9 @@ export default function ProjectDetailPage() {
                 <p>{t.no_snapshots}</p>
               </div>
             ) : (
-              snapshots.map((snap) => (
+              <>
+                {snapshots.length >= 2 && <EmissionsTrend snapshots={snapshots} lang={lang} />}
+              {snapshots.map((snap) => (
                 <SnapshotCard
                   key={snap.id}
                   snap={snap}
@@ -748,7 +750,8 @@ export default function ProjectDetailPage() {
                   onDownload={() => handleDownloadReport(snap.id)}
                   onGoogleExport={() => handleGoogleExport(snap.id)}
                 />
-              ))
+              ))}
+              </>
             )}
           </div>
         )}
@@ -761,6 +764,27 @@ export default function ProjectDetailPage() {
   );
 }
 
+interface RseScore {
+  id: string;
+  reporting_year: number;
+  e_ghg_scope1: number | null;
+  e_ghg_scope2: number | null;
+  e_ghg_scope3: number | null;
+  e_energy_total: number | null;
+  e_energy_renew: number | null;
+  e_water_total: number | null;
+  e_water_recycle: number | null;
+  e_waste_total: number | null;
+  e_waste_recycle: number | null;
+  s_employees_total: number | null;
+  s_women_pct: number | null;
+  s_training_hours: number | null;
+  s_accidents_rate: number | null;
+  g_board_women_pct: number | null;
+  g_independent_pct: number | null;
+  notes: string | null;
+}
+
 function RseAmeeTab({ projectId, token, lang, project, snapshots }: {
   projectId: string;
   token: string;
@@ -768,6 +792,17 @@ function RseAmeeTab({ projectId, token, lang, project, snapshots }: {
   project: Project | null;
   snapshots: ReportSnapshot[];
 }) {
+  const [rseScores, setRseScores] = useState<RseScore[]>([]);
+  const [rseLoading, setRseLoading] = useState(true);
+
+  useEffect(() => {
+    setRseLoading(true);
+    apiJson(`/projects/${projectId}/rse`, token)
+      .then((data) => setRseScores(data as RseScore[]))
+      .catch(() => {})
+      .finally(() => setRseLoading(false));
+  }, [projectId, token]);
+
   const lastSnap = snapshots[0];
   const totals = lastSnap?.totals_co2e ?? {};
   const gri = lastSnap?.gri_305_data;
@@ -892,9 +927,72 @@ function RseAmeeTab({ projectId, token, lang, project, snapshots }: {
               </div>
             </div>
           )}
+          {/* RSE historical scores */}
+          {!rseLoading && rseScores.length > 0 && (
+            <div style={{ ...sectionCard, marginTop: "1.5rem" }}>
+              <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.75rem" }}>
+                {lang === "fr" ? "Historique RSE BVC" : lang === "ar" ? "سجل RSE BVC" : "RSE BVC History"}
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                  <thead>
+                    <tr style={{ background: "var(--bg)" }}>
+                      {["Année", "GHG S1", "GHG S2", "GHG S3", "Énergie TEP", "EnR%", "Eau m³", "Déchets t", "Empl.", "Femmes%", "CA Femmes%"].map((h) => (
+                        <th key={h} style={{ padding: "0.4rem 0.6rem", textAlign: "left", fontWeight: 700, color: "var(--muted)", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", fontSize: "0.72rem" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rseScores.map((r) => {
+                      const enrPct = r.e_energy_total && r.e_energy_renew ? ((r.e_energy_renew / r.e_energy_total) * 100).toFixed(1) : "—";
+                      const fmt = (v: number | null) => v == null ? "—" : Number(v).toFixed(1);
+                      return (
+                        <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td style={{ padding: "0.4rem 0.6rem", fontWeight: 700 }}>{r.reporting_year}</td>
+                          <td style={{ padding: "0.4rem 0.6rem", color: "#dc2626" }}>{fmt(r.e_ghg_scope1)}</td>
+                          <td style={{ padding: "0.4rem 0.6rem", color: "#f97316" }}>{fmt(r.e_ghg_scope2)}</td>
+                          <td style={{ padding: "0.4rem 0.6rem", color: "#eab308" }}>{fmt(r.e_ghg_scope3)}</td>
+                          <td style={{ padding: "0.4rem 0.6rem" }}>{fmt(r.e_energy_total)}</td>
+                          <td style={{ padding: "0.4rem 0.6rem", color: "#16a34a" }}>{enrPct}{enrPct !== "—" ? "%" : ""}</td>
+                          <td style={{ padding: "0.4rem 0.6rem" }}>{fmt(r.e_water_total)}</td>
+                          <td style={{ padding: "0.4rem 0.6rem" }}>{fmt(r.e_waste_total)}</td>
+                          <td style={{ padding: "0.4rem 0.6rem" }}>{r.s_employees_total ?? "—"}</td>
+                          <td style={{ padding: "0.4rem 0.6rem" }}>{r.s_women_pct != null ? `${r.s_women_pct}%` : "—"}</td>
+                          <td style={{ padding: "0.4rem 0.6rem" }}>{r.g_board_women_pct != null ? `${r.g_board_women_pct}%` : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {rseScores[0]?.notes && (
+                <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.5rem", fontStyle: "italic" }}>{rseScores[0].notes}</p>
+              )}
+            </div>
+          )}
+
+          {/* Intensity metrics from last snapshot */}
+          {lastSnap.intensity_metrics && Object.keys(lastSnap.intensity_metrics).length > 0 && (
+            <div style={{ ...sectionCard, marginTop: "1.5rem", borderTop: "3px solid #7c3aed" }}>
+              <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.75rem" }}>
+                {lang === "fr" ? "Indicateurs d'intensité (GRI 305-4)" : lang === "ar" ? "مؤشرات الكثافة (GRI 305-4)" : "Intensity indicators (GRI 305-4)"}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem" }}>
+                {Object.entries(lastSnap.intensity_metrics).map(([k, v]) => (
+                  <div key={k} style={{ background: "var(--bg)", border: "1px solid #ede9fe", borderLeft: "3px solid #7c3aed", borderRadius: "0.5rem", padding: "0.75rem" }}>
+                    <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#7c3aed" }}>{Number(v).toFixed(4)}</div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.15rem" }}>{k.replace(/_/g, " ")} tCO₂e/unit</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* RSE score entry form (BVC piliers E/S/G) */}
           <div style={{ marginTop: "1.5rem" }}>
-            <RseScoreForm projectId={projectId} token={token} lang={lang} year={lastSnap.reporting_year} ghgScope1={gri?.["305-1"] ?? Number(totals["scope1"] ?? 0)} ghgScope2={gri?.["305-2-loc"] ?? Number(totals["scope2_location"] ?? 0)} ghgScope3={gri?.["305-3"] ?? Number(totals["scope3"] ?? 0)} />
+            <RseScoreForm projectId={projectId} token={token} lang={lang} year={lastSnap.reporting_year} ghgScope1={gri?.["305-1"] ?? Number(totals["scope1"] ?? 0)} ghgScope2={gri?.["305-2-loc"] ?? Number(totals["scope2_location"] ?? 0)} ghgScope3={gri?.["305-3"] ?? Number(totals["scope3"] ?? 0)} onSaved={() => {
+              apiJson(`/projects/${projectId}/rse`, token).then((data) => setRseScores(data as RseScore[])).catch(() => {});
+            }} />
           </div>
         </div>
       )}
@@ -902,7 +1000,7 @@ function RseAmeeTab({ projectId, token, lang, project, snapshots }: {
   );
 }
 
-function RseScoreForm({ projectId, token, lang, year, ghgScope1, ghgScope2, ghgScope3 }: {
+function RseScoreForm({ projectId, token, lang, year, ghgScope1, ghgScope2, ghgScope3, onSaved }: {
   projectId: string;
   token: string;
   lang: Lang;
@@ -910,6 +1008,7 @@ function RseScoreForm({ projectId, token, lang, year, ghgScope1, ghgScope2, ghgS
   ghgScope1: number;
   ghgScope2: number;
   ghgScope3: number;
+  onSaved?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -945,7 +1044,7 @@ function RseScoreForm({ projectId, token, lang, year, ghgScope1, ghgScope2, ghgS
           notes: form.notes || null,
         }),
       });
-      setSaved(true); setOpen(false);
+      setSaved(true); setOpen(false); onSaved?.();
     } catch {
       setErr(lang === "fr" ? "Erreur de sauvegarde" : lang === "ar" ? "خطأ في الحفظ" : "Save error");
     } finally { setSaving(false); }
@@ -1101,6 +1200,41 @@ function FactRow({
 }
 
 type TKeys = typeof T["fr"];
+
+function EmissionsTrend({ snapshots, lang }: { snapshots: ReportSnapshot[]; lang: Lang }) {
+  const sorted = [...snapshots].sort((a, b) => a.reporting_year - b.reporting_year);
+  const vals = sorted.map((s) => {
+    const t = s.totals_co2e ?? {};
+    return Number(t["total"] ?? Object.values(t).reduce((a, b) => a + b, 0));
+  });
+  const maxV = Math.max(...vals, 1);
+  const W = 400; const H = 80; const pad = 20;
+  const pts = vals.map((v, i) => {
+    const x = pad + (i / Math.max(vals.length - 1, 1)) * (W - pad * 2);
+    const y = H - pad - (v / maxV) * (H - pad * 2);
+    return `${x},${y}`;
+  }).join(" ");
+  const title = { fr: "Tendance des émissions (tCO₂e)", en: "Emissions trend (tCO₂e)", ar: "اتجاه الانبعاثات (tCO₂e)" }[lang];
+  return (
+    <div style={{ ...sectionCard, marginBottom: "1.25rem" }}>
+      <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.75rem" }}>{title}</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block" }}>
+        <polyline points={pts} fill="none" stroke="var(--navy)" strokeWidth={2.5} strokeLinejoin="round" />
+        {vals.map((v, i) => {
+          const x = pad + (i / Math.max(vals.length - 1, 1)) * (W - pad * 2);
+          const y = H - pad - (v / maxV) * (H - pad * 2);
+          return (
+            <g key={i}>
+              <circle cx={x} cy={y} r={4} fill="var(--navy)" />
+              <text x={x} y={y - 8} textAnchor="middle" fontSize={10} fill="var(--navy)" fontWeight={700}>{v.toFixed(0)}</text>
+              <text x={x} y={H - 4} textAnchor="middle" fontSize={9} fill="var(--muted)">{sorted[i].reporting_year}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
 
 function SnapshotCard({
   snap,
