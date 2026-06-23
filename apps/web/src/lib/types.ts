@@ -6,6 +6,11 @@ export interface Project {
   reporting_year: number;
   methodology_id: string;
   status: string;
+  reporting_frameworks: string[] | null;
+  sector_code: string | null;
+  language: "fr" | "en" | "ar" | null;
+  ndc_target_year: number | null;
+  ndc_baseline_year: number | null;
   created_at: string;
 }
 
@@ -14,6 +19,10 @@ export interface Client {
   bureau_id: string;
   name: string;
   sector: string;
+  naics_code: string | null;
+  secteur_maroc: string | null;
+  is_listed_bvc: boolean;
+  rse_reporting_required: boolean;
   created_at: string;
 }
 
@@ -49,6 +58,9 @@ export interface ReportSnapshot {
   computation_trace: unknown[];
   factor_set_versions: unknown;
   reconciliation: unknown;
+  gri_305_data: Record<string, number> | null;
+  ndc_alignment: Record<string, unknown> | null;
+  intensity_metrics: Record<string, number> | null;
   created_at: string;
 }
 

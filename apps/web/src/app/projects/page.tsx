@@ -15,10 +15,13 @@ export default function ProjectsPage() {
   const [methodologies, setMethodologies] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ clientId: "", name: "", year: new Date().getFullYear(), methodologyId: "" });
+  const [form, setForm] = useState({
+    clientId: "", name: "", year: new Date().getFullYear(), methodologyId: "",
+    reportingFrameworks: [] as string[], sectorCode: "", language: "fr",
+  });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [lang, setLang] = useState<"FR" | "EN">("FR");
+  const [lang, setLang] = useState<"FR" | "EN" | "AR">("FR");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -43,11 +46,17 @@ export default function ProjectsPage() {
     try {
       const proj = await apiJson<Project>("/projects", token, {
         method: "POST",
-        body: JSON.stringify({ client_id: form.clientId, name: form.name, reporting_year: form.year, methodology_id: form.methodologyId || methodologies[0]?.id }),
+        body: JSON.stringify({
+          client_id: form.clientId, name: form.name, reporting_year: form.year,
+          methodology_id: form.methodologyId || methodologies[0]?.id,
+          reporting_frameworks: form.reportingFrameworks.length ? form.reportingFrameworks : null,
+          sector_code: form.sectorCode || null,
+          language: form.language,
+        }),
       });
       setProjects((p) => [...p, proj]);
       setShowCreate(false);
-      setForm({ clientId: "", name: "", year: new Date().getFullYear(), methodologyId: "" });
+      setForm({ clientId: "", name: "", year: new Date().getFullYear(), methodologyId: "", reportingFrameworks: [], sectorCode: "", language: "fr" });
     } catch { setCreateError(t("createError", lang)); }
     finally { setCreating(false); }
   }
@@ -124,6 +133,53 @@ export default function ProjectsPage() {
                   {methodologies.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
+              <div>
+                <label style={labelStyle}>{t("sectorCode", lang)}</label>
+                <select value={form.sectorCode} onChange={(e) => setForm({ ...form, sectorCode: e.target.value })} style={inputStyle}>
+                  <option value="">{lang === "FR" ? "Sélectionner..." : lang === "AR" ? "اختر..." : "Select..."}</option>
+                  {MOROCCO_SECTORS.map((s) => <option key={s.code} value={s.code}>{s.label[lang]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>{t("reportLang", lang)}</label>
+                <select value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })} style={inputStyle}>
+                  <option value="fr">Français</option>
+                  <option value="en">English</option>
+                  <option value="ar">العربية</option>
+                </select>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ ...labelStyle, marginBottom: "0.6rem" }}>{t("frameworks", lang)}</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                  {REPORTING_FRAMEWORKS.map((f) => {
+                    const checked = form.reportingFrameworks.includes(f.key);
+                    return (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setForm((prev) => ({
+                          ...prev,
+                          reportingFrameworks: checked
+                            ? prev.reportingFrameworks.filter((x) => x !== f.key)
+                            : [...prev.reportingFrameworks, f.key],
+                        }))}
+                        style={{
+                          background: checked ? "var(--navy)" : "#fff",
+                          color: checked ? "#fff" : "var(--muted)",
+                          border: `1.5px solid ${checked ? "var(--navy)" : "var(--border)"}`,
+                          borderRadius: "9999px",
+                          padding: "0.3rem 0.8rem",
+                          fontSize: "0.78rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               {createError && <div style={{ gridColumn: "1 / -1", ...errorBox }}>{createError}</div>}
               <div style={{ gridColumn: "1 / -1", display: "flex", gap: "0.75rem" }}>
                 <button type="submit" disabled={creating} style={primaryBtn}>{creating ? t("creating", lang) : t("create", lang)}</button>
@@ -167,15 +223,15 @@ export default function ProjectsPage() {
                 <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600, letterSpacing: "0.08em" }}>Advisory</span>
               </div>
               <p style={{ fontSize: "0.78rem", color: "var(--muted-light)", margin: 0, maxWidth: 280, lineHeight: 1.5 }}>
-                {lang === "FR"
-                  ? "Plateforme de reporting carbone réglementaire pour bureaux d'étude. Calcul ISO 14064 conforme et traçable."
+                {lang === "FR" ? "Plateforme de reporting carbone réglementaire pour bureaux d'étude. Calcul ISO 14064 conforme et traçable."
+                  : lang === "AR" ? "منصة إعداد تقارير الكربون التنظيمية لمكاتب الدراسات. حساب متوافق مع ISO 14064 وقابل للتتبع."
                   : "Regulatory carbon reporting platform for consulting firms. ISO 14064 compliant and traceable computation."}
               </p>
             </div>
             <div style={{ display: "flex", gap: "3rem" }}>
               <div>
                 <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.6rem" }}>
-                  {lang === "FR" ? "Conformité" : "Compliance"}
+                  {lang === "FR" ? "Conformité" : lang === "AR" ? "الامتثال" : "Compliance"}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   {["ISO 14064-1", "Bilan Carbone® ADEME", "IPCC AR6 GWP"].map((item) => (
@@ -185,13 +241,13 @@ export default function ProjectsPage() {
               </div>
               <div>
                 <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.6rem" }}>
-                  {lang === "FR" ? "Sécurité" : "Security"}
+                  {lang === "FR" ? "Sécurité" : lang === "AR" ? "الأمان" : "Security"}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   {[
-                    lang === "FR" ? "Isolation multi-tenant RLS" : "Multi-tenant RLS isolation",
-                    lang === "FR" ? "Chiffrement données at rest" : "Data at rest encryption",
-                    lang === "FR" ? "Hébergement en région" : "In-region hosting",
+                    lang === "FR" ? "Isolation multi-tenant RLS" : lang === "AR" ? "عزل متعدد المستأجرين" : "Multi-tenant RLS isolation",
+                    lang === "FR" ? "Chiffrement données at rest" : lang === "AR" ? "تشفير البيانات" : "Data at rest encryption",
+                    lang === "FR" ? "Hébergement en région" : lang === "AR" ? "استضافة داخل المنطقة" : "In-region hosting",
                   ].map((item) => (
                     <span key={item} style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{item}</span>
                   ))}
@@ -200,8 +256,8 @@ export default function ProjectsPage() {
             </div>
           </div>
           <div style={{ marginTop: "1.5rem", fontSize: "0.72rem", color: "var(--muted-light)", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
-            {lang === "FR"
-              ? "© JAD2 Advisory · Adrar AI · Ce rapport contient une assistance IA — les facteurs d'émission requièrent une validation experte (§0.12)."
+            {lang === "FR" ? "© JAD2 Advisory · Adrar AI · Ce rapport contient une assistance IA — les facteurs d'émission requièrent une validation experte (§0.12)."
+              : lang === "AR" ? "© JAD2 Advisory · Adrar AI · يحتوي هذا التقرير على مساعدة ذكاء اصطناعي — تتطلب عوامل الانبعاث التحقق من قبل خبير (§0.12)."
               : "© JAD2 Advisory · Adrar AI · This report contains AI assistance — emission factors require expert validation (§0.12)."}
           </div>
         </footer>
@@ -210,9 +266,10 @@ export default function ProjectsPage() {
   );
 }
 
-function Topbar({ onLogout, lang, onLangChange }: { onLogout: () => void; lang: "FR" | "EN"; onLangChange: (l: "FR" | "EN") => void }) {
+function Topbar({ onLogout, lang, onLangChange }: { onLogout: () => void; lang: "FR" | "EN" | "AR"; onLangChange: (l: "FR" | "EN" | "AR") => void }) {
+  const isRtl = lang === "AR";
   return (
-    <header style={topbarStyle}>
+    <header style={{ ...topbarStyle, direction: isRtl ? "rtl" : "ltr" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
         <span style={logoChip}>JAD2</span>
         <span style={{ fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>Advisory</span>
@@ -221,14 +278,14 @@ function Topbar({ onLogout, lang, onLangChange }: { onLogout: () => void; lang: 
       </div>
       <nav style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
         <span style={{ fontWeight: 600, color: "var(--navy)", fontSize: "0.875rem", borderBottom: "2px solid var(--navy)", paddingBottom: "0.1rem" }}>
-          {lang === "FR" ? "Projets" : "Projects"}
+          {lang === "FR" ? "Projets" : lang === "AR" ? "المشاريع" : "Projects"}
         </span>
         <div style={{ display: "flex", gap: "0.25rem" }}>
-          {(["FR", "EN"] as const).map((l) => (
+          {(["FR", "EN", "AR"] as const).map((l) => (
             <button key={l} onClick={() => onLangChange(l)} style={{ background: lang === l ? "var(--navy)" : "transparent", color: lang === l ? "#fff" : "var(--muted)", border: "1px solid var(--border)", borderRadius: "0.25rem", padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>{l}</button>
           ))}
         </div>
-        <button onClick={onLogout} style={ghostBtn}>{lang === "FR" ? "Déconnexion" : "Sign out"}</button>
+        <button onClick={onLogout} style={ghostBtn}>{lang === "FR" ? "Déconnexion" : lang === "AR" ? "تسجيل الخروج" : "Sign out"}</button>
       </nav>
     </header>
   );
@@ -267,19 +324,18 @@ function ProjectCard({ project: p, onClick }: { project: Project; onClick: () =>
   );
 }
 
-function EmptyState({ onCreate, lang }: { onCreate: () => void; lang: "FR" | "EN" }) {
+function EmptyState({ onCreate, lang }: { onCreate: () => void; lang: "FR" | "EN" | "AR" }) {
+  const txt = {
+    FR: { title: "Aucun projet", sub: "Créez votre premier projet de Bilan Carbone.", btn: "+ Nouveau projet" },
+    EN: { title: "No projects yet", sub: "Create your first Carbon Assessment project.", btn: "+ New project" },
+    AR: { title: "لا توجد مشاريع", sub: "أنشئ مشروع بصمة الكربون الأول.", btn: "+ مشروع جديد" },
+  }[lang];
   return (
-    <div style={{ textAlign: "center", padding: "4rem 2rem", background: "#fff", borderRadius: "0.75rem", border: "2px dashed var(--border)" }}>
+    <div style={{ textAlign: "center", padding: "4rem 2rem", background: "#fff", borderRadius: "0.75rem", border: "2px dashed var(--border)", direction: lang === "AR" ? "rtl" : "ltr" }}>
       <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>📊</div>
-      <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--navy)", margin: "0 0 0.5rem" }}>
-        {lang === "FR" ? "Aucun projet" : "No projects yet"}
-      </h3>
-      <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
-        {lang === "FR" ? "Créez votre premier projet de Bilan Carbone." : "Create your first Carbon Assessment project."}
-      </p>
-      <button onClick={onCreate} style={primaryBtn}>
-        {lang === "FR" ? "+ Nouveau projet" : "+ New project"}
-      </button>
+      <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--navy)", margin: "0 0 0.5rem" }}>{txt.title}</h3>
+      <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>{txt.sub}</p>
+      <button onClick={onCreate} style={primaryBtn}>{txt.btn}</button>
     </div>
   );
 }
@@ -291,44 +347,87 @@ function Spinner() {
 // ── i18n ──────────────────────────────────────────────────────────────────
 
 const i18n = {
-  platform:       { FR: "Plateforme · JAD2 Advisory", EN: "Platform · JAD2 Advisory" },
-  heroTitle:      { FR: "Pilotage Carbone Réglementaire", EN: "Regulatory Carbon Management" },
-  heroSub:        { FR: "Bilan Carbone conforme, traçable et sécurisé pour bureaux d'étude. Calcul déterministe, isolation multi-tenant, rapport DOCX.", EN: "Compliant, traceable and secure Carbon Assessment for consulting firms. Deterministic calculation, multi-tenant isolation, DOCX report." },
-  totalProjects:  { FR: "Projets total", EN: "Total projects" },
-  activeProjects: { FR: "Projets actifs", EN: "Active projects" },
-  completedProjects: { FR: "Terminés", EN: "Completed" },
-  clients:        { FR: "Clients", EN: "Clients" },
-  myProjects:     { FR: "Mes projets", EN: "My projects" },
-  projectsCount:  { FR: "projets", EN: "projects" },
-  newProject:     { FR: "Nouveau projet", EN: "New project" },
-  createProject:  { FR: "Créer un projet", EN: "Create a project" },
-  client:         { FR: "Client", EN: "Client" },
-  selectClient:   { FR: "Sélectionner un client...", EN: "Select a client..." },
-  projectName:    { FR: "Nom du projet", EN: "Project name" },
-  year:           { FR: "Année", EN: "Year" },
-  methodology:    { FR: "Méthodologie", EN: "Methodology" },
-  create:         { FR: "Créer", EN: "Create" },
-  creating:       { FR: "Création...", EN: "Creating..." },
-  cancel:         { FR: "Annuler", EN: "Cancel" },
-  createError:    { FR: "Impossible de créer le projet.", EN: "Failed to create project." },
-  howItWorks:     { FR: "Comment ça marche", EN: "How it works" },
+  platform:          { FR: "Plateforme · JAD2 Advisory", EN: "Platform · JAD2 Advisory", AR: "منصة · JAD2 Advisory" },
+  heroTitle:         { FR: "Pilotage Carbone Réglementaire", EN: "Regulatory Carbon Management", AR: "إدارة الكربون التنظيمية" },
+  heroSub:           { FR: "Bilan Carbone conforme, traçable et sécurisé pour bureaux d'étude. Calcul déterministe, isolation multi-tenant, rapport DOCX.", EN: "Compliant, traceable and secure Carbon Assessment for consulting firms. Deterministic calculation, multi-tenant isolation, DOCX report.", AR: "تقييم الكربون المتوافق والقابل للتتبع لمكاتب الدراسات. حساب حتمي وعزل متعدد المستأجرين وتقرير DOCX." },
+  totalProjects:     { FR: "Projets total", EN: "Total projects", AR: "إجمالي المشاريع" },
+  activeProjects:    { FR: "Projets actifs", EN: "Active projects", AR: "المشاريع النشطة" },
+  completedProjects: { FR: "Terminés", EN: "Completed", AR: "مكتملة" },
+  clients:           { FR: "Clients", EN: "Clients", AR: "العملاء" },
+  myProjects:        { FR: "Mes projets", EN: "My projects", AR: "مشاريعي" },
+  projectsCount:     { FR: "projets", EN: "projects", AR: "مشاريع" },
+  newProject:        { FR: "Nouveau projet", EN: "New project", AR: "مشروع جديد" },
+  createProject:     { FR: "Créer un projet", EN: "Create a project", AR: "إنشاء مشروع" },
+  client:            { FR: "Client", EN: "Client", AR: "العميل" },
+  selectClient:      { FR: "Sélectionner un client...", EN: "Select a client...", AR: "اختر عميلاً..." },
+  projectName:       { FR: "Nom du projet", EN: "Project name", AR: "اسم المشروع" },
+  year:              { FR: "Année", EN: "Year", AR: "السنة" },
+  methodology:       { FR: "Méthodologie", EN: "Methodology", AR: "المنهجية" },
+  frameworks:        { FR: "Référentiels de reporting", EN: "Reporting frameworks", AR: "أطر إعداد التقارير" },
+  sectorCode:        { FR: "Secteur d'activité", EN: "Activity sector", AR: "قطاع النشاط" },
+  reportLang:        { FR: "Langue du rapport", EN: "Report language", AR: "لغة التقرير" },
+  create:            { FR: "Créer", EN: "Create", AR: "إنشاء" },
+  creating:          { FR: "Création...", EN: "Creating...", AR: "جارٍ الإنشاء..." },
+  cancel:            { FR: "Annuler", EN: "Cancel", AR: "إلغاء" },
+  createError:       { FR: "Impossible de créer le projet.", EN: "Failed to create project.", AR: "تعذر إنشاء المشروع." },
+  howItWorks:        { FR: "Comment ça marche", EN: "How it works", AR: "كيف يعمل" },
 };
 
-function t(key: keyof typeof i18n, lang: "FR" | "EN"): string {
+function t(key: keyof typeof i18n, lang: "FR" | "EN" | "AR"): string {
   return i18n[key][lang];
 }
 
-function steps(lang: "FR" | "EN") {
-  return lang === "FR" ? [
-    { title: "Importer les données", desc: "Chargez vos documents (PDF, XLSX, CSV). L'extraction est automatique et traçable, avec provenance par champ." },
-    { title: "Valider les faits", desc: "Revue humaine obligatoire : seul le consultant habilité peut promouvoir un fait de 'proposé' à 'validé'." },
-    { title: "Calculer & Publier", desc: "Le noyau de calcul déterministe produit le snapshot Bilan Carbone avec rapport DOCX en un clic." },
-  ] : [
-    { title: "Import data", desc: "Upload your documents (PDF, XLSX, CSV). Extraction is automatic and traceable, with per-field provenance." },
-    { title: "Validate facts", desc: "Mandatory human review: only an authorised consultant can promote a fact from 'proposed' to 'validated'." },
-    { title: "Compute & Publish", desc: "The deterministic calculation kernel produces the Carbon Assessment snapshot with a DOCX report in one click." },
-  ];
+function steps(lang: "FR" | "EN" | "AR") {
+  const s = {
+    FR: [
+      { title: "Importer les données", desc: "Chargez vos documents (PDF, XLSX, CSV). L'extraction est automatique et traçable, avec provenance par champ." },
+      { title: "Valider les faits", desc: "Revue humaine obligatoire : seul le consultant habilité peut promouvoir un fait de 'proposé' à 'validé'." },
+      { title: "Calculer & Publier", desc: "Le noyau de calcul déterministe produit le snapshot Bilan Carbone avec rapport DOCX en un clic." },
+    ],
+    EN: [
+      { title: "Import data", desc: "Upload your documents (PDF, XLSX, CSV). Extraction is automatic and traceable, with per-field provenance." },
+      { title: "Validate facts", desc: "Mandatory human review: only an authorised consultant can promote a fact from 'proposed' to 'validated'." },
+      { title: "Compute & Publish", desc: "The deterministic calculation kernel produces the Carbon Assessment snapshot with a DOCX report in one click." },
+    ],
+    AR: [
+      { title: "استيراد البيانات", desc: "ارفع مستنداتك (PDF، XLSX، CSV). الاستخراج تلقائي وقابل للتتبع مع توثيق مصدر كل حقل." },
+      { title: "التحقق من الحقائق", desc: "مراجعة بشرية إلزامية: فقط المستشار المعتمد يمكنه الترقية من 'مقترح' إلى 'مُتحقق'." },
+      { title: "الحساب والنشر", desc: "نواة الحساب الحتمية تنتج لقطة بيان الكربون مع تقرير DOCX بنقرة واحدة." },
+    ],
+  };
+  return s[lang];
 }
+
+const REPORTING_FRAMEWORKS = [
+  { key: "bilan_carbone", label: "Bilan Carbone®" },
+  { key: "iso_14064", label: "ISO 14064-1" },
+  { key: "ghg_protocol", label: "GHG Protocol" },
+  { key: "gri_305", label: "GRI 305" },
+  { key: "amee", label: "AMEE Bilan Énergétique" },
+  { key: "csrd", label: "CSRD/ESRS" },
+  { key: "tcfd", label: "TCFD" },
+  { key: "cdp", label: "CDP" },
+];
+
+const MOROCCO_SECTORS: { code: string; label: { FR: string; EN: string; AR: string } }[] = [
+  { code: "A01", label: { FR: "Agriculture & Élevage", EN: "Agriculture & Livestock", AR: "الزراعة والثروة الحيوانية" } },
+  { code: "B08", label: { FR: "Industries Extractives (Mines, Phosphates)", EN: "Extractive Industries (Mining, Phosphates)", AR: "الصناعات الاستخراجية (مناجم، فوسفات)" } },
+  { code: "C23", label: { FR: "Industrie du Ciment & Matériaux", EN: "Cement & Construction Materials", AR: "صناعة الإسمنت والمواد" } },
+  { code: "C24", label: { FR: "Sidérurgie & Métallurgie", EN: "Steel & Metallurgy", AR: "الصلب والمعادن" } },
+  { code: "C13", label: { FR: "Industrie Textile & Habillement", EN: "Textile & Clothing", AR: "صناعة النسيج والملابس" } },
+  { code: "D35", label: { FR: "Production d'Énergie (ONEE, EnR)", EN: "Energy Production (ONEE, RES)", AR: "إنتاج الطاقة (ONEE، طاقة متجددة)" } },
+  { code: "E38", label: { FR: "Collecte & Traitement des Déchets", EN: "Waste Collection & Treatment", AR: "جمع ومعالجة النفايات" } },
+  { code: "F41", label: { FR: "BTP & Construction", EN: "Construction", AR: "البناء والأشغال العامة" } },
+  { code: "G46", label: { FR: "Commerce & Distribution", EN: "Trade & Distribution", AR: "التجارة والتوزيع" } },
+  { code: "H49", label: { FR: "Transport Terrestre (ONCF, CTM)", EN: "Land Transport (Rail, Bus)", AR: "النقل البري (سكة حديد، حافلات)" } },
+  { code: "H50", label: { FR: "Transport Maritime & Portuaire", EN: "Maritime & Port Transport", AR: "النقل البحري والموانئ" } },
+  { code: "I55", label: { FR: "Hôtellerie & Tourisme", EN: "Hospitality & Tourism", AR: "الضيافة والسياحة" } },
+  { code: "J61", label: { FR: "Télécom & Numérique", EN: "Telecom & Digital", AR: "الاتصالات والرقمي" } },
+  { code: "K64", label: { FR: "Finance & Banque", EN: "Finance & Banking", AR: "المالية والبنوك" } },
+  { code: "O84", label: { FR: "Administration Publique", EN: "Public Administration", AR: "الإدارة العامة" } },
+  { code: "P85", label: { FR: "Éducation", EN: "Education", AR: "التعليم" } },
+  { code: "Q86", label: { FR: "Santé & Pharmacie", EN: "Health & Pharmaceuticals", AR: "الصحة والأدوية" } },
+];
 
 // ── Styles ─────────────────────────────────────────────────────────────────
 

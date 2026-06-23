@@ -7,7 +7,7 @@ import { apiJson, apiFetch } from "@/lib/api";
 import type { ActivityFact, Document, Project, ReportSnapshot, Anomaly } from "@/lib/types";
 
 type Tab = "facts" | "compute" | "results";
-type Lang = "fr" | "en";
+type Lang = "fr" | "en" | "ar";
 
 const T = {
   fr: {
@@ -68,6 +68,65 @@ const T = {
     total: "Total CO₂e",
     validate_fail: "Échec de la validation",
     google_doc: "Document Google",
+  },
+  ar: {
+    back: "→ المشاريع",
+    proposed_count: (n: number) => `${n} مقترح`,
+    validated_count: (n: number) => `${n} مُتحقق`,
+    snapshots: "لقطات",
+    anomalies_lbl: "شذوذات",
+    tab_facts: "حقائق النشاط",
+    tab_compute: "الحساب",
+    tab_results: "النتائج",
+    upload_title: "استيراد مستند",
+    upload_btn: "رفع",
+    uploading: "جارٍ الرفع...",
+    upload_type_err: "نوع غير مدعوم. استخدم PDF أو XLSX أو CSV أو DOCX.",
+    upload_size_err: "الملف كبير جداً (الحد الأقصى 50 ميغابايت).",
+    upload_ok: "تم رفع المستند — الاستخراج قيد التنفيذ.",
+    upload_fail: "فشل الرفع. يرجى إعادة المحاولة.",
+    docs_title: "المستندات المستوردة",
+    doc_pending: "في الانتظار",
+    doc_processing: "جارٍ الاستخراج...",
+    doc_done: "✓ تم الاستخراج",
+    doc_error: "⚠ خطأ",
+    proposed_title: "حقائق مقترحة — يلزم التحقق",
+    pending: (n: number) => `${n} في الانتظار`,
+    validate_notice: "فقط المستشار المعتمد يمكنه التحقق من الحقائق. كل تحقق يُلزم مسؤوليتك المهنية.",
+    validate_btn: "تحقق",
+    validated_title: "حقائق مُتحقق منها",
+    badge_validated: "✓ مُتحقق",
+    no_facts: "لا توجد حقائق. استورد مستنداً لبدء الاستخراج.",
+    proposed_warning: (n: number) => `${n} حقيقة لا تزال مقترحة. تحقق منها في تبويب "الحقائق" قبل الحساب.`,
+    compute_title: "معاملات الحساب",
+    region_lbl: "المنطقة",
+    year_lbl: "سنة الإبلاغ",
+    gwp_lbl: "أساس GWP",
+    reconcile_btn: "التحقق من التوفيق",
+    compute_btn: "تشغيل حساب الانبعاثات",
+    computing: "جارٍ الحساب...",
+    compute_err: (n: number) => `${n} حقيقة لا تزال مقترحة. تحقق منها أولاً.`,
+    compute_fail: "فشل الحساب. تأكد من التحقق من جميع الحقائق.",
+    anomalies_title: "الشذوذات المكتشفة",
+    export_title: "تصدير Google Docs",
+    export_desc: "معطّل افتراضياً (§0.11). يُرسل التقرير الإجمالي فقط — لا بيانات خام.",
+    enabled: "مفعّل",
+    disabled: "معطّل",
+    no_snapshots: "لا توجد لقطات. شغّل حساباً من تبويب \"الحساب\".",
+    download_btn: "⬇ تنزيل DOCX",
+    google_btn: "Google Docs →",
+    exporting: "جارٍ التصدير...",
+    snap_label: "لقطة",
+    hash_lbl: "hash",
+    scope_title: "توزيع النطاق",
+    uncertainty_lbl: "عدم اليقين (منفصل عن الإجماليات، §0.2)",
+    reconcile_warn: "توفيق",
+    ai_disclosure: "أُنتج هذا التقرير بمساعدة الذكاء الاصطناعي (Adrar AI). تتطلب عوامل الانبعاث التحقق من قبل خبير. Adrar AI يُسرّع التقارير الخبيرة — لا ضمان امتثال تنظيمي تلقائي.",
+    scope2_loc: "النطاق 2 (الموقع)",
+    scope2_mkt: "النطاق 2 (السوق)",
+    total: "إجمالي CO₂e",
+    validate_fail: "فشل التحقق",
+    google_doc: "مستند Google",
   },
   en: {
     back: "← Projects",
@@ -377,22 +436,27 @@ export default function ProjectDetailPage() {
             {project?.reporting_year}
           </span>
           {/* Language toggle */}
-          <button
-            onClick={() => setLang(lang === "fr" ? "en" : "fr")}
-            style={{
-              background: "none",
-              border: "1px solid var(--border)",
-              borderRadius: "0.3rem",
-              padding: "0.2rem 0.55rem",
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              cursor: "pointer",
-              color: "var(--navy)",
-              letterSpacing: "0.08em",
-            }}
-          >
-            {lang === "fr" ? "EN" : "FR"}
-          </button>
+          <div style={{ display: "flex", gap: "0.2rem" }}>
+            {(["fr", "en", "ar"] as Lang[]).map((l) => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                style={{
+                  background: lang === l ? "var(--navy)" : "none",
+                  color: lang === l ? "#fff" : "var(--muted)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "0.3rem",
+                  padding: "0.2rem 0.5rem",
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -404,11 +468,18 @@ export default function ProjectDetailPage() {
           <StatChip label={t.snapshots} value={snapshots.length} color="var(--accent)" />
           {anomalies.length > 0 && <StatChip label={t.anomalies_lbl} value={anomalies.length} color="var(--red)" />}
         </div>
-        {project?.client_id && (
-          <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
-            Client ID: {project.client_id.slice(0, 8)}…
-          </span>
-        )}
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+          {project?.reporting_frameworks?.map((fw) => (
+            <span key={fw} style={{ fontSize: "0.68rem", fontWeight: 700, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: "9999px", padding: "0.15rem 0.5rem" }}>
+              {fw.replace(/_/g, " ").toUpperCase()}
+            </span>
+          ))}
+          {project?.sector_code && (
+            <span style={{ fontSize: "0.72rem", color: "var(--muted)", fontWeight: 600 }}>
+              {project.sector_code}
+            </span>
+          )}
+        </div>
       </div>
 
       <div style={pageWrap}>
@@ -819,6 +890,71 @@ function SnapshotCard({
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* GRI 305 disclosure breakdown */}
+      {snap.gri_305_data && Object.keys(snap.gri_305_data).length > 0 && (
+        <div style={{ marginBottom: "0.75rem" }}>
+          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.5rem" }}>
+            GRI 305 — Émissions
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.5rem" }}>
+            {(["305-1", "305-2-loc", "305-2-mkt", "305-3"] as const).map((k) => {
+              const val = (snap.gri_305_data as Record<string, number>)[k];
+              if (val == null) return null;
+              const labels: Record<string, string> = { "305-1": "GRI 305-1 Scope 1", "305-2-loc": "GRI 305-2 Loc.", "305-2-mkt": "GRI 305-2 Mkt.", "305-3": "GRI 305-3 Scope 3" };
+              return (
+                <div key={k} style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "0.4rem", padding: "0.5rem 0.75rem" }}>
+                  <div style={{ fontSize: "0.7rem", color: "#0369a1", fontWeight: 700 }}>{labels[k]}</div>
+                  <div style={{ fontSize: "1rem", fontWeight: 800, color: "#0c4a6e" }}>{Number(val).toFixed(2)} t</div>
+                </div>
+              );
+            })}
+          </div>
+          {/* GRI 305-4: Intensity */}
+          {(snap.intensity_metrics as Record<string, number> | null) && (
+            <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              {Object.entries(snap.intensity_metrics as Record<string, number>).map(([k, v]) => (
+                <span key={k} style={{ fontSize: "0.78rem", background: "#f1f5f9", border: "1px solid var(--border)", borderRadius: "0.35rem", padding: "0.25rem 0.6rem", color: "var(--text)" }}>
+                  <strong>GRI 305-4</strong> {k}: {Number(v).toFixed(3)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* NDC Morocco alignment */}
+      {snap.ndc_alignment && (snap.ndc_alignment as { progress_pct?: number; baseline_emissions?: number; target_emissions?: number }).progress_pct != null && (
+        <div style={{ marginBottom: "0.75rem", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "0.5rem", padding: "0.85rem 1rem" }}>
+          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#166534", marginBottom: "0.5rem" }}>
+            NDC Maroc 2030 — Objectif −45.5% vs BAU
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#166534" }}>
+                {(snap.ndc_alignment as { progress_pct: number }).progress_pct.toFixed(1)}%
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "#166534" }}>progression</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 120 }}>
+              <div style={{ height: 8, background: "#dcfce7", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${Math.min(100, (snap.ndc_alignment as { progress_pct: number }).progress_pct)}%`,
+                  background: "var(--green)",
+                  borderRadius: 4,
+                  transition: "width 0.5s",
+                }} />
+              </div>
+              {(snap.ndc_alignment as { baseline_emissions?: number; target_emissions?: number }).baseline_emissions && (
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                  Baseline: {((snap.ndc_alignment as { baseline_emissions: number }).baseline_emissions / 1000).toFixed(1)} kt · Cible: {((snap.ndc_alignment as { target_emissions: number }).target_emissions / 1000).toFixed(1)} kt
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
