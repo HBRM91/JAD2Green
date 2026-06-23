@@ -7,9 +7,10 @@ Invariant §0.4: NO finalize/approve/submit endpoint exists here or anywhere.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from ..deps import DBDep, TenantDep
+from ..limiter import limiter
 from ..models.requests import ComputeEmissionsRequest
 from ..models.responses import AnomalyResponse, ReportSnapshotResponse
 from ..services.compute_svc import ComputeError, run_compute_and_persist
@@ -22,7 +23,9 @@ router = APIRouter()
     response_model=ReportSnapshotResponse,
     status_code=201,
 )
+@limiter.limit("10/minute")
 def compute_emissions_endpoint(
+    request: Request,
     project_id: str,
     body: ComputeEmissionsRequest,
     tenant: TenantDep,

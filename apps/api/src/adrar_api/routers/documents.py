@@ -8,9 +8,10 @@ import base64
 import os
 import re
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 
 from ..deps import DBDep, TenantDep
+from ..limiter import limiter
 
 router = APIRouter()
 
@@ -71,7 +72,9 @@ def _check_magic_bytes(content: bytes, claimed_type: str) -> None:
 
 
 @router.post("/projects/{project_id}/documents", status_code=202)
+@limiter.limit("20/minute")
 async def upload_document(
+    request: Request,
     project_id: str,
     file: UploadFile,
     tenant: TenantDep,

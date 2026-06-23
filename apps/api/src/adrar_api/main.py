@@ -5,7 +5,10 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
+from .limiter import limiter
 from .routers import activity, anomalies, compute, documents, factor_sets, projects, reports
 
 app = FastAPI(
@@ -13,6 +16,9 @@ app = FastAPI(
     version="0.1.0",
     description="GHG emissions reporting API for bureaux d'étude.",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS ──────────────────────────────────────────────────────────────────
 # Restrict to known frontend origins. Override via ALLOWED_ORIGINS env var
