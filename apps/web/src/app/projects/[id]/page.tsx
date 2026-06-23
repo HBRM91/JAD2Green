@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase";
 import { apiJson, apiFetch } from "@/lib/api";
 import type { ActivityFact, Document, Project, ReportSnapshot, Anomaly } from "@/lib/types";
 
-type Tab = "facts" | "compute" | "results";
+type Tab = "facts" | "compute" | "results" | "rse";
 type Lang = "fr" | "en" | "ar";
 
 const T = {
@@ -68,6 +68,7 @@ const T = {
     total: "Total CO₂e",
     validate_fail: "Échec de la validation",
     google_doc: "Document Google",
+    tab_rse: "RSE / AMEE",
   },
   ar: {
     back: "→ المشاريع",
@@ -127,6 +128,7 @@ const T = {
     total: "إجمالي CO₂e",
     validate_fail: "فشل التحقق",
     google_doc: "مستند Google",
+    tab_rse: "RSE / AMEE",
   },
   en: {
     back: "← Projects",
@@ -186,6 +188,7 @@ const T = {
     total: "Total CO₂e",
     validate_fail: "Validation failed",
     google_doc: "Google Document",
+    tab_rse: "RSE / AMEE",
   },
 };
 
@@ -485,9 +488,9 @@ export default function ProjectDetailPage() {
       <div style={pageWrap}>
         {/* Tabs */}
         <div style={tabBarStyle}>
-          {(["facts", "compute", "results"] as Tab[]).map((tb) => (
+          {(["facts", "compute", "results", "rse"] as Tab[]).map((tb) => (
             <button key={tb} onClick={() => setTab(tb)} style={{ ...tabBtnBase, ...(tab === tb ? tabBtnActive : {}) }}>
-              {tb === "facts" ? t.tab_facts : tb === "compute" ? t.tab_compute : t.tab_results}
+              {tb === "facts" ? t.tab_facts : tb === "compute" ? t.tab_compute : tb === "results" ? t.tab_results : t.tab_rse}
               {tb === "facts" && facts.length > 0 && (
                 <span style={tabBadge}>{facts.length}</span>
               )}
@@ -749,7 +752,148 @@ export default function ProjectDetailPage() {
             )}
           </div>
         )}
+        {/* ── RSE / AMEE TAB ── */}
+        {tab === "rse" && (
+          <RseAmeeTab projectId={projectId} token={token!} lang={lang} project={project} snapshots={snapshots} />
+        )}
       </div>
+    </div>
+  );
+}
+
+function RseAmeeTab({ projectId, token, lang, project, snapshots }: {
+  projectId: string;
+  token: string;
+  lang: Lang;
+  project: Project | null;
+  snapshots: ReportSnapshot[];
+}) {
+  const lastSnap = snapshots[0];
+  const totals = lastSnap?.totals_co2e ?? {};
+  const gri = lastSnap?.gri_305_data;
+
+  const lbl = {
+    fr: { title: "Reporting RSE & Bilan Énergétique AMEE", bvc: "Statut BVC", amee: "Déclaration AMEE (Loi 47-09)", gri305: "Divulgations GRI 305", ndc: "NDC Maroc 2030", frameworks: "Référentiels actifs", noSnap: "Lancez un calcul pour voir les données RSE.", scope1: "Scope 1", scope2: "Scope 2 (loc.)", scope3: "Scope 3", total: "Total GHG" },
+    en: { title: "RSE Reporting & AMEE Energy Audit", bvc: "BVC Status", amee: "AMEE Declaration (Law 47-09)", gri305: "GRI 305 Disclosures", ndc: "Morocco NDC 2030", frameworks: "Active frameworks", noSnap: "Run a computation to see RSE data.", scope1: "Scope 1", scope2: "Scope 2 (loc.)", scope3: "Scope 3", total: "Total GHG" },
+    ar: { title: "تقارير RSE وميزانية طاقة AMEE", bvc: "حالة BVC", amee: "إعلان AMEE (قانون 47-09)", gri305: "إفصاحات GRI 305", ndc: "NDC المغرب 2030", frameworks: "الأطر المفعّلة", noSnap: "شغّل حساباً لرؤية بيانات RSE.", scope1: "النطاق 1", scope2: "النطاق 2 (موقع)", scope3: "النطاق 3", total: "إجمالي GHG" },
+  }[lang];
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ ...sectionCard, marginBottom: "1.5rem", borderLeft: "4px solid #0ea5e9" }}>
+        <h3 style={{ ...sectionTitle, color: "#0369a1", margin: 0 }}>{lbl.title}</h3>
+      </div>
+
+      {/* BVC + AMEE status */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+        <div style={{ ...sectionCard, borderTop: "3px solid #1d4ed8" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.5rem" }}>{lbl.bvc}</div>
+          {project?.reporting_frameworks?.includes("gri_305") ? (
+            <div>
+              <span style={{ fontSize: "0.8rem", fontWeight: 700, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: "9999px", padding: "0.2rem 0.6rem" }}>
+                GRI 305 actif
+              </span>
+              <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.5rem", lineHeight: 1.5 }}>
+                {lang === "fr" ? "Ce projet est configuré pour la divulgation GRI 305. Les données sont automatiquement calculées lors de chaque snapshot." : lang === "ar" ? "هذا المشروع مهيأ لإفصاح GRI 305. يتم حساب البيانات تلقائياً." : "This project is configured for GRI 305 disclosure. Data is auto-computed on each snapshot."}
+              </p>
+            </div>
+          ) : (
+            <p style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
+              {lang === "fr" ? "Ajoutez GRI 305 aux référentiels du projet pour activer la divulgation automatique (Rapport RSE BVC)." : lang === "ar" ? "أضف GRI 305 للأطر لتفعيل الإفصاح التلقائي." : "Add GRI 305 to project frameworks to enable automatic disclosure (BVC RSE Report)."}
+            </p>
+          )}
+        </div>
+        <div style={{ ...sectionCard, borderTop: "3px solid #16a34a" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.5rem" }}>{lbl.amee}</div>
+          {project?.reporting_frameworks?.includes("amee") ? (
+            <div>
+              <span style={{ fontSize: "0.8rem", fontWeight: 700, background: "#f0fdf4", color: "#166534", border: "1px solid #86efac", borderRadius: "9999px", padding: "0.2rem 0.6rem" }}>
+                AMEE actif
+              </span>
+              <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.5rem", lineHeight: 1.5 }}>
+                {lang === "fr" ? "Bilan Énergétique AMEE (Loi 47-09). Seuil de déclaration obligatoire : 500 TEP/an." : lang === "ar" ? "ميزانية طاقة AMEE (قانون 47-09). حد الإفصاح الإلزامي: 500 TEP/سنة." : "AMEE Energy Audit (Law 47-09). Mandatory reporting threshold: 500 TEP/year."}
+              </p>
+            </div>
+          ) : (
+            <p style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
+              {lang === "fr" ? "Ajoutez le référentiel AMEE au projet pour les grandes entreprises consommatrices d'énergie (Loi 47-09)." : lang === "ar" ? "أضف AMEE للمشاريع ذات الاستهلاك العالي للطاقة (قانون 47-09)." : "Add AMEE framework for large energy consumers (Law 47-09)."}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Active frameworks */}
+      {project?.reporting_frameworks && project.reporting_frameworks.length > 0 && (
+        <div style={{ ...sectionCard, marginBottom: "1.5rem" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.75rem" }}>{lbl.frameworks}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+            {project.reporting_frameworks.map((fw) => (
+              <span key={fw} style={{ fontSize: "0.8rem", fontWeight: 700, background: "var(--navy)", color: "#fff", borderRadius: "9999px", padding: "0.25rem 0.75rem" }}>
+                {fw.replace(/_/g, " ").toUpperCase()}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* GRI 305 summary from last snapshot */}
+      {!lastSnap ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "var(--muted)" }}>
+          <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📋</div>
+          <p>{lbl.noSnap}</p>
+        </div>
+      ) : (
+        <div>
+          {/* GHG summary */}
+          <div style={{ ...sectionCard, marginBottom: "1.5rem" }}>
+            <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.75rem" }}>
+              {lbl.gri305} — {lastSnap.reporting_year}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem" }}>
+              {[
+                { label: lbl.scope1, value: gri?.["305-1"] ?? totals["scope1"] ?? 0, color: "#dc2626" },
+                { label: lbl.scope2, value: gri?.["305-2-loc"] ?? totals["scope2_location"] ?? 0, color: "#f97316" },
+                { label: lbl.scope3, value: gri?.["305-3"] ?? totals["scope3"] ?? 0, color: "#eab308" },
+                { label: lbl.total, value: gri?.["305-total-loc"] ?? totals["total"] ?? 0, color: "var(--navy)" },
+              ].map((item) => (
+                <div key={item.label} style={{ background: "var(--bg)", border: `1.5px solid ${item.color}22`, borderLeft: `3px solid ${item.color}`, borderRadius: "0.5rem", padding: "0.85rem 1rem" }}>
+                  <div style={{ fontSize: "1.2rem", fontWeight: 800, color: item.color }}>{Number(item.value).toFixed(2)}</div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: "0.1rem" }}>{item.label} tCO₂e</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* NDC alignment */}
+          {lastSnap.ndc_alignment && (lastSnap.ndc_alignment as { progress_pct?: number }).progress_pct != null && (
+            <div style={{ ...sectionCard, background: "#f0fdf4", border: "1px solid #86efac" }}>
+              <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#166534", marginBottom: "0.75rem" }}>
+                {lbl.ndc}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "2rem", fontWeight: 900, color: "#166534" }}>
+                    {(lastSnap.ndc_alignment as { progress_pct: number }).progress_pct.toFixed(1)}%
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#16a34a" }}>
+                    {lang === "fr" ? "vers objectif −45.5%" : lang === "ar" ? "نحو هدف −45.5%" : "toward −45.5% target"}
+                  </div>
+                </div>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ height: 10, background: "#dcfce7", borderRadius: 5, overflow: "hidden", marginBottom: "0.4rem" }}>
+                    <div style={{ height: "100%", width: `${Math.min(100, (lastSnap.ndc_alignment as { progress_pct: number }).progress_pct)}%`, background: "#16a34a", borderRadius: 5 }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: "#166534" }}>
+                    <span>0%</span>
+                    <span>45.5% (NDC 2030)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
