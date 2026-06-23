@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
-type Lang = "fr" | "en";
+type Lang = "fr" | "en" | "ar";
 
 const T = {
   fr: {
@@ -31,6 +31,31 @@ const T = {
     error: "Identifiants incorrects. Veuillez réessayer.",
     footer: "JAD2 Advisory · Adrar AI · Tous droits réservés",
     trust: "Plateforme certifiée ISO 14064 · Données hébergées en région",
+  },
+  ar: {
+    headline: "Adrar AI",
+    tagline: "منصة إعداد تقارير الكربون التنظيمية لمكاتب الدراسات. بيان الكربون المتوافق والقابل للتتبع.",
+    features: [
+      "حساب حتمي معتمد",
+      "عزل متعدد المستأجرين لكل مكتب",
+      "تقرير Bilan Carbone بصيغة DOCX",
+      "تتبع كامل لحقائق النشاط",
+    ],
+    stats: [
+      { label: "مكاتب نشطة", value: "+120" },
+      { label: "تقارير منتجة", value: "+4000" },
+      { label: "طن CO₂e محسوبة", value: "+2 M" },
+    ],
+    form_title: "تسجيل دخول المستشار",
+    form_sub: "الوصول إلى مساحة العمل",
+    email_lbl: "البريد الإلكتروني المهني",
+    email_ph: "consultant@bureau.ma",
+    pwd_lbl: "كلمة المرور",
+    submit: "تسجيل الدخول",
+    submitting: "جارٍ التسجيل...",
+    error: "بيانات اعتماد خاطئة. يرجى المحاولة مرة أخرى.",
+    footer: "JAD2 Advisory · Adrar AI · جميع الحقوق محفوظة",
+    trust: "منصة معتمدة ISO 14064 · بيانات مستضافة داخل المنطقة",
   },
   en: {
     headline: "Adrar AI",
@@ -138,23 +163,26 @@ export default function LoginPage() {
       {/* Right panel — form */}
       <div style={formPanelStyle}>
         {/* Language toggle */}
-        <div style={{ position: "absolute", top: "1.25rem", right: "1.5rem" }}>
-          <button
-            onClick={() => setLang(lang === "fr" ? "en" : "fr")}
-            style={{
-              background: "none",
-              border: "1px solid var(--border)",
-              borderRadius: "0.3rem",
-              padding: "0.2rem 0.6rem",
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              cursor: "pointer",
-              color: "var(--navy)",
-              letterSpacing: "0.08em",
-            }}
-          >
-            {lang === "fr" ? "EN" : "FR"}
-          </button>
+        <div style={{ position: "absolute", top: "1.25rem", right: "1.5rem", display: "flex", gap: "0.25rem" }}>
+          {(["fr", "en", "ar"] as Lang[]).map((l) => (
+            <button
+              key={l}
+              onClick={() => setLang(l)}
+              style={{
+                background: lang === l ? "var(--navy)" : "none",
+                color: lang === l ? "#fff" : "var(--navy)",
+                border: "1px solid var(--border)",
+                borderRadius: "0.3rem",
+                padding: "0.2rem 0.5rem",
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                letterSpacing: "0.05em",
+              }}
+            >
+              {l.toUpperCase()}
+            </button>
+          ))}
         </div>
 
         <div style={{ width: "100%", maxWidth: 400 }}>

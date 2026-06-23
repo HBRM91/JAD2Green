@@ -15,6 +15,10 @@ export default function ProjectsPage() {
   const [methodologies, setMethodologies] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showCreateClient, setShowCreateClient] = useState(false);
+  const [clientForm, setClientForm] = useState({ name: "", sector: "", naics_code: "", secteur_maroc: "", is_listed_bvc: false, rse_reporting_required: false });
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [createClientError, setCreateClientError] = useState<string | null>(null);
   const [form, setForm] = useState({
     clientId: "", name: "", year: new Date().getFullYear(), methodologyId: "",
     reportingFrameworks: [] as string[], sectorCode: "", language: "fr",
@@ -61,6 +65,28 @@ export default function ProjectsPage() {
     finally { setCreating(false); }
   }
 
+  async function handleCreateClient(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setCreatingClient(true); setCreateClientError(null);
+    try {
+      const client = await apiJson<Client>("/clients", token, {
+        method: "POST",
+        body: JSON.stringify({
+          name: clientForm.name, sector: clientForm.sector || null,
+          naics_code: clientForm.naics_code || null,
+          secteur_maroc: clientForm.secteur_maroc || null,
+          is_listed_bvc: clientForm.is_listed_bvc,
+          rse_reporting_required: clientForm.rse_reporting_required,
+        }),
+      });
+      setClients((c) => [...c, client]);
+      setShowCreateClient(false);
+      setClientForm({ name: "", sector: "", naics_code: "", secteur_maroc: "", is_listed_bvc: false, rse_reporting_required: false });
+    } catch { setCreateClientError(lang === "FR" ? "Impossible de créer le client." : lang === "AR" ? "تعذر إنشاء العميل." : "Failed to create client."); }
+    finally { setCreatingClient(false); }
+  }
+
   async function handleLogout() { await supabase.auth.signOut(); router.push("/login"); }
 
   if (loading) return <Spinner />;
@@ -104,8 +130,56 @@ export default function ProjectsPage() {
             <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--navy)", margin: 0 }}>{t("myProjects", lang)}</h2>
             <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: "0.2rem 0 0" }}>{projects.length} {t("projectsCount", lang)}</p>
           </div>
-          <button onClick={() => setShowCreate(true)} style={primaryBtn}>+ {t("newProject", lang)}</button>
+          <div style={{ display: "flex", gap: "0.6rem" }}>
+            <button onClick={() => { setShowCreateClient(true); setShowCreate(false); }} style={ghostBtn}>
+              + {lang === "FR" ? "Nouveau client" : lang === "AR" ? "+ عميل جديد" : "+ New client"}
+            </button>
+            <button onClick={() => { setShowCreate(true); setShowCreateClient(false); }} style={primaryBtn}>+ {t("newProject", lang)}</button>
+          </div>
         </div>
+
+        {/* Create client form */}
+        {showCreateClient && (
+          <div style={{ ...card, marginBottom: "1.5rem", borderLeft: "4px solid var(--accent)" }}>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--accent)", marginBottom: "1.1rem" }}>
+              {lang === "FR" ? "Nouveau client" : lang === "AR" ? "عميل جديد" : "New client"}
+            </h3>
+            <form onSubmit={handleCreateClient} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>{lang === "FR" ? "Nom de l'entreprise" : lang === "AR" ? "اسم الشركة" : "Company name"} *</label>
+                <input value={clientForm.name} onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })} required style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>{lang === "FR" ? "Secteur Maroc" : lang === "AR" ? "القطاع (المغرب)" : "Morocco sector"}</label>
+                <select value={clientForm.secteur_maroc} onChange={(e) => setClientForm({ ...clientForm, secteur_maroc: e.target.value })} style={inputStyle}>
+                  <option value="">{lang === "FR" ? "Sélectionner..." : lang === "AR" ? "اختر..." : "Select..."}</option>
+                  {MOROCCO_SECTORS.map((s) => <option key={s.code} value={s.code}>{s.label[lang]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>{lang === "FR" ? "Code NAICS" : "NAICS code"}</label>
+                <input value={clientForm.naics_code} onChange={(e) => setClientForm({ ...clientForm, naics_code: e.target.value })} style={inputStyle} placeholder="ex: C24" />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", paddingTop: "1.2rem" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "var(--text)" }}>
+                  <input type="checkbox" checked={clientForm.is_listed_bvc} onChange={(e) => setClientForm({ ...clientForm, is_listed_bvc: e.target.checked })} />
+                  {lang === "FR" ? "Coté Bourse BVC" : lang === "AR" ? "مُدرج في BVC" : "Listed on BVC"}
+                </label>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", paddingTop: "1.2rem" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "var(--text)" }}>
+                  <input type="checkbox" checked={clientForm.rse_reporting_required} onChange={(e) => setClientForm({ ...clientForm, rse_reporting_required: e.target.checked })} />
+                  {lang === "FR" ? "Rapport RSE obligatoire" : lang === "AR" ? "تقرير RSE إلزامي" : "RSE report required"}
+                </label>
+              </div>
+              {createClientError && <div style={{ gridColumn: "1 / -1", ...errorBox }}>{createClientError}</div>}
+              <div style={{ gridColumn: "1 / -1", display: "flex", gap: "0.75rem" }}>
+                <button type="submit" disabled={creatingClient} style={primaryBtn}>{creatingClient ? "…" : (lang === "FR" ? "Créer" : lang === "AR" ? "إنشاء" : "Create")}</button>
+                <button type="button" onClick={() => setShowCreateClient(false)} style={ghostBtn}>{t("cancel", lang)}</button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Create form */}
         {showCreate && (
