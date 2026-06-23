@@ -68,6 +68,10 @@ def generate_narrative(
     reporting_year: int,
     methodology_name: str,
     gwp_basis: str,
+    gri_305_data: dict | None = None,
+    ndc_alignment: dict | None = None,
+    sector_code: str | None = None,
+    reporting_frameworks: list[str] | None = None,
 ) -> dict:
     """
     Call Claude to generate narrative sections.
@@ -84,8 +88,32 @@ def generate_narrative(
     scope3 = _to_float(totals.get("scope3", 0))
     total = _to_float(totals.get("total", 0))
 
+    # Build Morocco-specific context
+    morocco_ctx = ""
+    if ndc_alignment and ndc_alignment.get("progress_pct") is not None:
+        pct = ndc_alignment["progress_pct"]
+        target = ndc_alignment.get("target_emissions", 0)
+        morocco_ctx += (
+            f"\nAlignement NDC Maroc 2030 (objectif -45.5% vs BAU) :\n"
+            f"- Progression vers l'objectif : {pct:.1f}%\n"
+            f"- Cible NDC : {_to_float(target):.2f} tCO₂e\n"
+            f"- En bonne voie : {'Oui' if ndc_alignment.get('on_track') else 'Non'}\n"
+        )
+    if gri_305_data:
+        morocco_ctx += (
+            f"\nDivulgations GRI 305 :\n"
+            f"- GRI 305-1 (Scope 1) : {_to_float(gri_305_data.get('305-1', 0)):.2f} tCO₂e\n"
+            f"- GRI 305-2 loc. (Scope 2) : {_to_float(gri_305_data.get('305-2-loc', 0)):.2f} tCO₂e\n"
+            f"- GRI 305-3 (Scope 3) : {_to_float(gri_305_data.get('305-3', 0)):.2f} tCO₂e\n"
+        )
+    if reporting_frameworks:
+        frameworks_str = ", ".join(reporting_frameworks)
+        morocco_ctx += f"\nRéférentiels de reporting applicables : {frameworks_str}\n"
+    if sector_code:
+        morocco_ctx += f"Secteur d'activité (code) : {sector_code}\n"
+
     prompt = f"""\
-Tu es un expert Bilan Carbone. Rédige en français un rapport structuré pour :
+Tu es un expert Bilan Carbone marocain. Rédige en français un rapport structuré pour :
 Projet : {project_name}
 Année de référence : {reporting_year}
 Méthode : {methodology_name} (base GWP : {gwp_basis})
@@ -96,12 +124,20 @@ Résultats agrégés (tCO₂e) :
 - Scope 2 market-based : {scope2_mkt:.2f}
 - Scope 3 (indirect) : {scope3:.2f}
 - Total (S1 + S2 location + S3) : {total:.2f}
+{morocco_ctx}
+Contexte réglementaire marocain à mentionner si pertinent :
+- Loi 99-12 portant Charte de l'Environnement et du Développement Durable
+- Loi 47-09 sur l'efficacité énergétique (AMEE/ADEREE)
+- NDC Maroc 2021 : -45.5% d'ici 2030 vs BAU (conditionnel aide internationale)
+- SNDD 2030 : Stratégie Nationale de Développement Durable
+- Rapport RSE Bourse de Casablanca (BVC) — obligatoire pour les entreprises cotées
+- Facteur ONEE 2023 : 0.679 kgCO₂e/kWh
 
 Rédige UNIQUEMENT à partir de ces données agrégées. Retourne JSON avec :
 {{
-  "exec_summary": "paragraphe de synthèse (3-4 phrases)",
-  "key_findings": ["constat 1", "constat 2", "constat 3"],
-  "recommendations": ["recommandation 1", "recommandation 2", "recommandation 3"]
+  "exec_summary": "paragraphe de synthèse (4-5 phrases, incluant contexte réglementaire marocain pertinent)",
+  "key_findings": ["constat 1", "constat 2", "constat 3", "constat 4"],
+  "recommendations": ["recommandation 1 (priorité Scope 1)", "recommandation 2", "recommandation 3 (lien NDC/réglementaire)"]
 }}"""
 
     try:
