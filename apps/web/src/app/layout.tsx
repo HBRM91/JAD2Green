@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Adrar AI — Bilan Carbone | JAD2 Advisory",
   description: "Plateforme de reporting carbone réglementaire pour bureaux d'étude — JAD2 Advisory",
   keywords: "bilan carbone, GHG, reporting carbone, bureau d'étude, JAD2 Advisory, Maroc",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
