@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = "super-secret-jwt-key-for-testing"
     supabase_url: str = ""
     secret_key: str = "dev-secret"
+    token_encrypt_key: str = ""      # pgp_sym_encrypt key for Google refresh tokens at rest
 
     def model_post_init(self, __context: object) -> None:
         # Fail fast if production-like environment uses known-weak secrets.
@@ -26,15 +27,15 @@ class Settings(BaseSettings):
             return
         env = os.getenv("ENVIRONMENT", "development").lower()
         if env == "production":
-            if self.supabase_jwt_secret in _WEAK_SECRETS:
+            if self.supabase_jwt_secret in _WEAK_SECRETS or len(self.supabase_jwt_secret) < 32:
                 raise RuntimeError(
-                    "FATAL: supabase_jwt_secret is set to a known-weak default. "
-                    "Set a real secret in the environment before starting in production."
+                    "FATAL: supabase_jwt_secret is set to a known-weak default or is too short. "
+                    "Set a strong secret (≥32 chars) in the environment before starting in production."
                 )
-            if self.secret_key in _WEAK_SECRETS:
+            if self.secret_key in _WEAK_SECRETS or len(self.secret_key) < 32:
                 raise RuntimeError(
-                    "FATAL: secret_key is set to a known-weak default. "
-                    "Set a real secret in the environment before starting in production."
+                    "FATAL: secret_key is set to a known-weak default or is too short. "
+                    "Set a strong secret (≥32 chars) in the environment before starting in production."
                 )
 
 
