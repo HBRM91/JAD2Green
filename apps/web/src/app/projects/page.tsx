@@ -272,6 +272,33 @@ export default function ProjectsPage() {
           </div>
         )}
 
+        {/* Clients overview */}
+        {clients.length > 0 && (
+          <div style={{ marginTop: "2.5rem" }}>
+            <h2 style={{ fontSize: "1rem", fontWeight: 800, color: "var(--navy)", margin: "0 0 1rem" }}>
+              {lang === "FR" ? "Portefeuille clients" : lang === "AR" ? "محفظة العملاء" : "Client portfolio"}
+              <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "var(--muted)", marginLeft: "0.5rem" }}>({clients.length})</span>
+            </h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "0.75rem" }}>
+              {clients.map((c) => (
+                <div key={c.id} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "0.75rem", padding: "1rem 1.1rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.4rem" }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--navy)" }}>{c.name}</span>
+                    <div style={{ display: "flex", gap: "0.3rem" }}>
+                      {c.is_listed_bvc && <span style={{ fontSize: "0.6rem", fontWeight: 700, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: "9999px", padding: "0.1rem 0.4rem" }}>BVC</span>}
+                      {c.rse_reporting_required && <span style={{ fontSize: "0.6rem", fontWeight: 700, background: "#f0fdf4", color: "#166534", border: "1px solid #86efac", borderRadius: "9999px", padding: "0.1rem 0.4rem" }}>RSE</span>}
+                    </div>
+                  </div>
+                  {c.secteur_maroc && <p style={{ fontSize: "0.75rem", color: "var(--accent)", fontWeight: 600, margin: 0 }}>{c.secteur_maroc}</p>}
+                  <p style={{ fontSize: "0.72rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+                    {projects.filter((p) => p.client_id === c.id).length} {lang === "FR" ? "projet(s)" : lang === "AR" ? "مشروع" : "project(s)"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Three-step workflow (JAD2 Advisory pattern) */}
         <div style={{ marginTop: "3rem" }}>
           <h2 style={{ fontSize: "1rem", fontWeight: 800, color: "var(--navy)", textAlign: "center", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "1.5rem" }}>
@@ -378,6 +405,7 @@ function ProjectCard({ project: p, onClick }: { project: Project; onClick: () =>
   const [hovered, setHovered] = useState(false);
   const colors: Record<string, string> = { active: "#16a34a", completed: "#2563eb", archived: "#94a3b8" };
   const color = colors[p.status] ?? "var(--muted)";
+  const fwColors: Record<string, string> = { gri_305: "#1d4ed8", amee: "#16a34a", iso_14064: "#7c3aed", ghg_protocol: "#0369a1", csrd_esrs: "#b45309", tcfd: "#dc2626", cdp: "#0891b2", bilan_carbone: "#374151" };
   return (
     <div
       onClick={onClick}
@@ -387,10 +415,23 @@ function ProjectCard({ project: p, onClick }: { project: Project; onClick: () =>
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.85rem" }}>
         <span style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color, background: `${color}18`, padding: "0.2rem 0.55rem", borderRadius: "9999px" }}>{p.status}</span>
-        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--muted)" }}>{p.reporting_year}</span>
+        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+          {p.language && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "0.25rem", padding: "0.1rem 0.35rem" }}>{p.language.toUpperCase()}</span>}
+          <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--muted)" }}>{p.reporting_year}</span>
+        </div>
       </div>
       <h3 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--navy)", margin: "0 0 0.3rem" }}>{p.name}</h3>
+      {p.sector_code && <p style={{ color: "var(--accent)", fontSize: "0.75rem", fontWeight: 600, margin: "0 0 0.3rem" }}>{p.sector_code}</p>}
       <p style={{ color: "var(--muted)", fontSize: "0.8rem", margin: 0 }}>{new Date(p.created_at).toLocaleDateString("fr-FR")}</p>
+      {p.reporting_frameworks && p.reporting_frameworks.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", marginTop: "0.75rem" }}>
+          {p.reporting_frameworks.slice(0, 4).map((fw) => {
+            const c = fwColors[fw] ?? "#374151";
+            return <span key={fw} style={{ fontSize: "0.62rem", fontWeight: 700, color: "#fff", background: c, borderRadius: "9999px", padding: "0.15rem 0.45rem" }}>{fw.replace(/_/g, " ").toUpperCase()}</span>;
+          })}
+          {p.reporting_frameworks.length > 4 && <span style={{ fontSize: "0.62rem", color: "var(--muted)" }}>+{p.reporting_frameworks.length - 4}</span>}
+        </div>
+      )}
       <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end" }}>
         <span style={{ color: "var(--accent)", fontSize: "0.82rem", fontWeight: 700 }}>Ouvrir →</span>
       </div>
