@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from ..deps import DBDep, TenantDep
+from ..deps import DBDep, TenantDep, validate_path_uuid
 from ..models.requests import ClientCreate, ProjectCreate
 from ..models.responses import ClientResponse, ProjectResponse
 
@@ -68,6 +68,7 @@ def list_projects(tenant: TenantDep, db: DBDep) -> list[ProjectResponse]:
 
 @router.get("/projects/{project_id}", response_model=ProjectResponse)
 def get_project(project_id: str, tenant: TenantDep, db: DBDep) -> ProjectResponse:
+    project_id = validate_path_uuid(project_id, "project_id")
     with db.cursor() as cur:
         cur.execute(f"SELECT {_PROJECT_COLS} FROM projects WHERE id = %s", (project_id,))
         row = cur.fetchone()
@@ -79,6 +80,7 @@ def get_project(project_id: str, tenant: TenantDep, db: DBDep) -> ProjectRespons
 @router.get("/projects/{project_id}/summary")
 def get_project_summary(project_id: str, tenant: TenantDep, db: DBDep) -> dict:
     """Aggregated summary: last snapshot totals, anomaly count, RSE status, facts counts."""
+    project_id = validate_path_uuid(project_id, "project_id")
     with db.cursor() as cur:
         cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
         if not cur.fetchone():

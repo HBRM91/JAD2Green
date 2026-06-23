@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..deps import DBDep, TenantDep
+from ..deps import DBDep, TenantDep, validate_path_uuid
 
 router = APIRouter()
 
@@ -26,6 +26,7 @@ def list_denominators(tenant: TenantDep, db: DBDep) -> list[dict]:
 
 @router.get("/projects/{project_id}/intensity-config")
 def list_intensity_config(project_id: str, tenant: TenantDep, db: DBDep) -> list[dict]:
+    project_id = validate_path_uuid(project_id, "project_id")
     with db.cursor() as cur:
         cur.execute(
             """
@@ -44,6 +45,7 @@ def list_intensity_config(project_id: str, tenant: TenantDep, db: DBDep) -> list
 @router.post("/projects/{project_id}/intensity-config", status_code=201)
 def upsert_intensity_config(project_id: str, body: IntensityConfigCreate, tenant: TenantDep, db: DBDep) -> dict:
     """Upsert denominator value for GRI 305-4 intensity ratio computation."""
+    project_id = validate_path_uuid(project_id, "project_id")
     with db.cursor() as cur:
         cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
         if not cur.fetchone():

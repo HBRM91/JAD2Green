@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..deps import DBDep, TenantDep
+from ..deps import DBDep, TenantDep, validate_path_uuid
 
 router = APIRouter()
 
@@ -45,6 +45,7 @@ _RSE_COLS = """id, bureau_id, project_id, reporting_year,
 
 @router.get("/projects/{project_id}/rse", response_model=list[dict])
 def list_rse_scores(project_id: str, tenant: TenantDep, db: DBDep) -> list[dict]:
+    project_id = validate_path_uuid(project_id, "project_id")
     with db.cursor() as cur:
         cur.execute(
             f"SELECT {_RSE_COLS} FROM rse_scores WHERE project_id = %s ORDER BY reporting_year DESC",
@@ -56,6 +57,7 @@ def list_rse_scores(project_id: str, tenant: TenantDep, db: DBDep) -> list[dict]
 @router.post("/projects/{project_id}/rse", status_code=201)
 def upsert_rse_score(project_id: str, body: RseScoreCreate, tenant: TenantDep, db: DBDep) -> dict:
     """Upsert RSE score for a project/year. Used by BVC-listed company RSE reporting."""
+    project_id = validate_path_uuid(project_id, "project_id")
     with db.cursor() as cur:
         cur.execute("SELECT id FROM projects WHERE id = %s", (project_id,))
         if not cur.fetchone():

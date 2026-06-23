@@ -105,3 +105,11 @@ def get_db(tenant: TenantDep) -> Generator[psycopg2.extensions.connection, None,
 
 
 DBDep = Annotated[psycopg2.extensions.connection, Depends(get_db)]
+
+
+def validate_path_uuid(value: str, field: str = "id") -> str:
+    """Validate a UUID path parameter — raise 422 on invalid format."""
+    try:
+        return str(_uuid.UUID(value))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=422, detail=f"Invalid UUID format for {field}")
