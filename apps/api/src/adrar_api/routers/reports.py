@@ -115,8 +115,11 @@ def download_report(
         sector_code=extra.get("sector_code"),
         reporting_frameworks=extra.get("reporting_frameworks"),
     )
+    # Inject extra project metadata into snapshot for renderer access
+    snapshot_for_render = dict(snapshot)
+    snapshot_for_render["reporting_frameworks"] = extra.get("reporting_frameworks")
     docx_bytes = render_bilan_carbone_docx(
-        snapshot=snapshot,
+        snapshot=snapshot_for_render,
         project_name=proj_name,
         client_name=client_name,
         methodology_name=method_name,
@@ -194,8 +197,10 @@ def export_to_google_docs(
         sector_code=extra.get("sector_code"),
         reporting_frameworks=extra.get("reporting_frameworks"),
     )
+    snapshot_for_render2 = dict(snapshot)
+    snapshot_for_render2["reporting_frameworks"] = extra.get("reporting_frameworks")
     docx_bytes = render_bilan_carbone_docx(
-        snapshot=snapshot,
+        snapshot=snapshot_for_render2,
         project_name=proj_name,
         client_name=client_name,
         methodology_name=method_name,

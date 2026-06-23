@@ -250,6 +250,70 @@ def render_bilan_carbone_docx(
             "Cible conditionnelle : −45,5% par rapport au BAU d'ici 2030."
         ).style.font.size = Pt(9)
 
+    # ── 6c. GRI 305-4 Intensity metrics (when computed) ──────────────────
+    intensity = snapshot.get("intensity_metrics")
+    if intensity and isinstance(intensity, dict) and intensity:
+        _heading(doc, "GRI 305-4 — Indicateurs d'intensité", level=1)
+        doc.add_paragraph(
+            "Conformément à la divulgation GRI 305-4, les indicateurs d'intensité suivants ont été "
+            "calculés en divisant les émissions totales par le dénominateur de ratio sélectionné."
+        )
+        doc.add_paragraph()
+        int_table = doc.add_table(rows=1, cols=3)
+        int_table.style = "Light Grid Accent 1"
+        int_hdr = int_table.rows[0].cells
+        for i, h in enumerate(["Indicateur (dénominateur)", "Intensité (tCO₂e/unité)", "Unité"]):
+            int_hdr[i].text = h
+            int_hdr[i].paragraphs[0].runs[0].font.bold = True
+        for key, val in intensity.items():
+            parts = key.rsplit("_", 1)
+            name, unit = (parts[0], parts[1]) if len(parts) == 2 else (key, "")
+            row = int_table.add_row().cells
+            row[0].text = name
+            row[1].text = f"{float(val):.4f}"
+            row[2].text = unit
+        doc.add_paragraph()
+
+    # ── 6d. AMEE Bilan Énergétique summary ───────────────────────────────
+    reporting_frameworks = snapshot.get("reporting_frameworks") or []
+    if "amee" in (reporting_frameworks if isinstance(reporting_frameworks, list) else []):
+        doc.add_page_break()
+        _heading(doc, "Bilan Énergétique AMEE — Loi 47-09", level=1)
+        doc.add_paragraph(
+            "Ce projet est assujetti à la déclaration obligatoire AMEE en vertu de la Loi 47-09 "
+            "relative à l'efficacité énergétique. Le bilan énergétique doit être soumis à l'Agence "
+            "Marocaine pour l'Efficacité Énergétique (AMEE) lorsque la consommation dépasse 500 TEP/an.\n\n"
+            "Les données d'énergie primaire et les indicateurs d'intensité énergétique figurant dans "
+            "ce rapport ont été extraits des faits d'activité validés. La déclaration AMEE officielle "
+            "doit être validée et déposée par le consultant habilité."
+        )
+        doc.add_paragraph()
+        # Energy summary from scope 1 (stationary combustion) + scope 2 (electricity)
+        s1 = float(totals.get("scope1", 0))
+        s2 = float(snapshot.get("scope2_location_t") or totals.get("scope2_location", 0))
+        amee_table = doc.add_table(rows=1, cols=2)
+        amee_table.style = "Light Grid Accent 1"
+        amee_hdr = amee_table.rows[0].cells
+        amee_hdr[0].text = "Poste énergétique"
+        amee_hdr[0].paragraphs[0].runs[0].font.bold = True
+        amee_hdr[1].text = "Émissions GES liées (tCO₂e)"
+        amee_hdr[1].paragraphs[0].runs[0].font.bold = True
+        amee_data = [
+            ("Combustion stationnaire (Scope 1)", _dec(s1)),
+            ("Électricité ONEE (Scope 2 location)", _dec(s2)),
+            ("Total énergie directe + indirecte", _dec(s1 + s2)),
+        ]
+        for lbl, val in amee_data:
+            r = amee_table.add_row().cells
+            r[0].text = lbl
+            r[1].text = val
+        doc.add_paragraph()
+        doc.add_paragraph(
+            "Référence : Loi n° 47-09 relative à l'efficacité énergétique (Maroc) — "
+            "Décret d'application relatif aux obligations de déclaration des grandes "
+            "entreprises consommatrices d'énergie."
+        ).style.font.size = Pt(9)
+
     # ── 7. Recommandations ────────────────────────────────────────────────
     doc.add_page_break()
     _heading(doc, "Recommandations", level=1)
