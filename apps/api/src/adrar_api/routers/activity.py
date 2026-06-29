@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 
 from ..deps import DBDep, TenantDep
-from ..models.requests import ProposeActivityRequest
+from ..models.requests import ProposeActivityRequest, ReviewerNoteRequest
 from ..models.responses import ActivityFactResponse
 
 router = APIRouter()
@@ -122,24 +122,36 @@ def validate_activity_fact(
     fact_id: str,
     tenant: TenantDep,
     db: DBDep,
+    body: ReviewerNoteRequest | None = Body(default=None),
 ) -> ActivityFactResponse:
     """
     Human-only validation gate: promote a proposed fact to validated.
     This is the ONLY code path that may write 'validated' state (§0 inv 3 + 4).
     Called by the consultant UI validation gate (Phase 6).
     """
+    note = body.reviewer_note if body else None
+    if note:
+        merge_sql = "provenance = provenance || jsonb_build_object('reviewer_note', %s::text)"
+        params: tuple = (note, tenant.user_id, fact_id, project_id)
+    else:
+        merge_sql = "provenance = provenance"
+        params = (tenant.user_id, fact_id, project_id)
+
     with db.cursor() as cur:
         cur.execute(
-            """
+            f"""
             UPDATE activity_facts
-            SET state = 'validated', validated_by = %s, validated_at = NOW()
+            SET state = 'validated',
+                validated_by = %s,
+                validated_at = NOW(),
+                {merge_sql}
             WHERE id = %s AND project_id = %s AND state = 'proposed'
             RETURNING
                 id, bureau_id, project_id, category, sub_category, description,
                 activity_value, activity_unit, period_start, period_end,
                 scope, scope2_type, state, provenance, created_at
             """,
-            (tenant.user_id, fact_id, project_id),
+            params,
         )
         row = cur.fetchone()
     if not row:

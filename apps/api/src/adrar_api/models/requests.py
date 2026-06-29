@@ -64,6 +64,11 @@ class FlagAnomalyRequest(BaseModel):
     description: str
 
 
+class ReviewerNoteRequest(BaseModel):
+    """Optional body for /validate. Stored in activity_facts.provenance->reviewer_note (§0 inv 4: human-only)."""
+    reviewer_note: str | None = None
+
+
 class ComputeEmissionsRequest(BaseModel):
     reporting_year: int
     gwp_basis: Literal["AR4", "AR5", "AR6"] = "AR5"
