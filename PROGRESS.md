@@ -71,5 +71,29 @@
   - Worker test_report: 17/17 pass; kernel: 25/25; API: 38/1 skip
   - Pre-existing test_ingestion fixture FK error (factor_set_id seed drift) is unrelated
 
+- [x] TODOLIST Phase 4 — Hetzner CX33 deploy runbook (Caddyfile, docker-compose.prod.yml,
+  DEPLOYMENT.md, scripts/backup.sh, scripts/restore.sh, scripts/healthcheck.sh,
+  scripts/setup-hetzner.sh, HARDENING_CHECKLIST.md):
+  - Caddy 2.8 sidecar: auto-TLS via Let's Encrypt HTTP-01, strict security headers
+    (HSTS preload, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+    Permissions-Policy), body size limits (25 MB api / 5 MB web)
+  - docker-compose.prod.yml: prod override — clears host port bindings on api/web/redis
+    (only Caddy is exposed), adds internal networks, memory caps per service, env_file
+    contract validated against .env.example + config.py
+  - backup.sh: pg_dump | gzip | gpg --symmetric AES-256 → sftp to Hetzner Storage Box,
+    30-day retention, runs via /etc/cron.d/adrar-backup at 03:00 UTC
+  - restore.sh: sftp download → gpg decrypt → psql restore, supports
+    RESTORE_PRESERVE=1 for in-place restore
+  - healthcheck.sh: TLS reachability, security headers, no-finalize invariant,
+    auth-required on /factor-sets, optional Redis heartbeat; cron-safe (5-min cadence)
+  - setup-hetzner.sh: one-shot Ubuntu 24.04 bootstrap — adrar user, Docker + Compose v2,
+    UFW (22/80/443), backup cron, logrotate
+  - DEPLOYMENT.md: full Hetzner CX33 runbook (bootstrap, deploy, env, migrations,
+    smoke test, backups/DR, update/rollback, monitoring, open items)
+  - HARDENING_CHECKLIST.md: per-§0 invariant verification list (auth, RLS, no-finalize,
+    effective-dating, dual S2, uncertainty separation, conversion-as-data, snapshot
+    immutability, residency, AI transparency, headers, TLS, network, backups, DPAs)
+  - .env.example: added SUPABASE_JWT_SECRET (referenced by compose, missing previously)
+
 ## OPEN QUESTIONS (stop and ask rather than guess on invariants)
 - none

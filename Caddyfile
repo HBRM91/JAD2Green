@@ -1,0 +1,63 @@
+# Caddy — reverse proxy + auto-TLS for api.yourdomain.com and app.yourdomain.com
+# Runs as a sidecar to the api/web containers on the Hetzner CX33 host.
+#
+# Env: $API_DOMAIN, $WEB_DOMAIN, $CADDY_EMAIL (for Let's Encrypt acct).
+# Set them in /etc/adrar.env on the host and pass via `envfile` in compose.
+
+{$API_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy api:8000
+
+    # Security headers (api responds JSON; CSP minimal)
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        # CSP: api is JSON-only, no scripts/styles loaded
+        Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+        # Strip Server header (don't advertise Caddy)
+        -Server
+    }
+
+    # Body limit: 25 MB matches the api config (uploads stop at 25 MB before 413)
+    request_body {
+        max_size 25MB
+    }
+
+    # Access log to stdout (Docker picks it up)
+    log {
+        output stdout
+        format console
+    }
+}
+
+{$WEB_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy web:3000
+
+    # Strict CSP for the Next.js app (no inline scripts; Next.js nonces handled server-side)
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' {$API_DOMAIN} https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        -Server
+    }
+
+    request_body {
+        max_size 5MB
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}
+
+# ACME challenge shared by both domains (Caddy handles HTTP-01 automatically)
+http://{$API_DOMAIN}, http://{$WEB_DOMAIN} {
+    redir https://{host}{uri} permanent
+}

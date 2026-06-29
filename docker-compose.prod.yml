@@ -1,0 +1,98 @@
+# Production override for the Hetzner CX33 deploy.
+# Reuses images built from docker-compose.yml; adds Caddy on the host network,
+# isolates the data tier (api/worker/redis) on an internal network only.
+#
+# Usage:
+#   cp .env.example .env  # then fill in prod secrets
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# DNS: point $API_DOMAIN and $WEB_DOMAIN A/AAAA records at the Hetzner CX33
+# public IPv4/IPv6 BEFORE first Caddy boot (HTTP-01 challenge needs the
+# port 80 listener to be reachable from Let's Encrypt).
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    env_file:
+      - .env
+    environment:
+      - API_DOMAIN=${API_DOMAIN}
+      - WEB_DOMAIN=${WEB_DOMAIN}
+      - CADDY_EMAIL=${CADDY_EMAIL}
+    depends_on:
+      - api
+      - web
+    networks:
+      - frontend
+      - backend
+
+  api:
+    # In prod only Caddy reaches the api. Empty ports = no host bind.
+    ports: []
+    expose:
+      - "8000"
+    env_file:
+      - .env
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  worker:
+    env_file:
+      - .env
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  web:
+    ports: []
+    expose:
+      - "3000"
+    env_file:
+      - .env
+    networks:
+      - frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    ports: []
+    expose:
+      - "6379"
+    networks:
+      - backend
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 600M
+
+networks:
+  frontend:
+  backend:
+    internal: false  # api/worker need outbound (LLM providers, Supabase)
+
+volumes:
+  caddy_data:
+  caddy_config:
+  redis_data:
