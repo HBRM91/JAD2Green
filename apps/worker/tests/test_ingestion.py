@@ -293,9 +293,8 @@ def test_extraction_writes_proposed_only(su_conn, db_url, bureau_id, project_id)
 # ── 4. LLM never touches calc ─────────────────────────────────────────────
 
 def test_scan_parser_without_api_key_returns_empty(monkeypatch):
-    """When ANTHROPIC_API_KEY is not set, parse_scan returns empty list — no crash, no calc."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    # Minimal "PDF" bytes (won't actually be parsed, key check happens first)
+    """When DASHSCOPE_API_KEY is not set, parse_scan returns empty list — no crash, no calc."""
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     result = parse_scan(b"%PDF-1.4 fake scan content", "doc-1", "scan.pdf")
     assert result == [], "parse_scan must return [] when no API key is set"
 

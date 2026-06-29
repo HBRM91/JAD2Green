@@ -1,44 +1,49 @@
 """
-Messy multilingual scan parser using Claude Haiku.
+Messy multilingual scan parser.
 
-Haiku is invoked ONLY for low-text-density PDFs (scanned images) when an
-ANTHROPIC_API_KEY is configured. If not configured, returns empty list with
-a note in the processing log.
+PaddleOCR-VL-1.5 via Aliyun DashScope converts the raw PDF into text + bbox
++ per-page confidence. Qwen3-Plus via OpenRouter then converts the OCR text
+into structured activity facts. Both providers are called only when their
+respective env keys are configured; if absent, returns empty list and the
+caller logs the skip.
 
-INVARIANT: Haiku extracts RAW TEXT → proposed facts only.
-           Haiku NEVER computes emissions. The kernel is never called here.
+INVARIANT: LLM/OCR extracts RAW TEXT → proposed facts only. Neither ever
+           computes emissions. The kernel is never called here.
            (§0 inv 1: LLM never touches the calc path)
 """
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from .aliyun_dashscope import ocr_scan
 from .base import ExtractedFact
 
-_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+_EXTRACTION_PROMPT = """\
+Tu es un extracteur de données pour un bilan carbone marocain.
+À partir du texte OCR ci-dessous (document scanné, possiblement FR/AR/EN),
+extrais chaque consommation d'énergie ou de carburant sous forme JSON.
 
-_SYSTEM_PROMPT = """\
-You are a data extractor for GHG emission reporting.
-Extract energy/fuel consumption data from the provided document image.
-Return ONLY a JSON array. Each element must have:
-  category (string, e.g. scope1_mobile, scope1_stationary, scope2_electricity, scope3_transport),
-  activity_value (number),
-  activity_unit (string, e.g. kWh, L, MJ, kg, m3, km),
+Retourne UNIQUEMENT un tableau JSON. Chaque élément doit avoir :
+  category (chaîne, ex. scope1_mobile, scope1_stationary, scope2_electricity, scope3_transport),
+  activity_value (nombre),
+  activity_unit (chaîne, ex. kWh, L, MJ, kg, m3, km, tonne),
   period_start (YYYY-MM-DD),
   period_end (YYYY-MM-DD),
-  scope (integer 1, 2, or 3),
-  confidence (float 0.0–1.0),
-  fuel_type (string or null),
-  raw_text (the exact text you read).
-Do NOT compute emissions. Do NOT include calculated totals. Extract raw data only."""
+  scope (entier 1, 2 ou 3),
+  confidence (flottant 0.0–1.0),
+  fuel_type (chaîne ou null),
+  raw_text (le texte exact lu).
+Ne calcule AUCUNE émission. Ne fais AUCUN total. Extrait les données brutes uniquement.
+
+TEXTE OCR :
+"""
 
 
-def _parse_haiku_response(json_text: str, doc_id: str, filename: str) -> list[ExtractedFact]:
+def _parse_qwen_response(json_text: str, doc_id: str, filename: str) -> list[ExtractedFact]:
     try:
         items = json.loads(json_text)
     except (json.JSONDecodeError, ValueError):
@@ -68,52 +73,51 @@ def _parse_haiku_response(json_text: str, doc_id: str, filename: str) -> list[Ex
     return facts
 
 
-def parse_scan(content: bytes, doc_id: str, filename: str) -> list[ExtractedFact]:
-    """
-    Extract activity data from a scanned PDF using Haiku.
-
-    If ANTHROPIC_API_KEY is not set, returns empty list (callers log the skip).
-    This ensures tests without credentials still work.
-
-    LLM invariant: output goes to propose_activity only — kernel is never called here.
-    """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+def _extract_facts_with_qwen(ocr_text: str) -> list[ExtractedFact]:
+    """Qwen3-Plus via OpenRouter: OCR text → structured activity facts."""
+    api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        return []  # graceful degradation; logged by caller
+        return []
 
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers={
+            "HTTP-Referer": "https://adrar.ai",
+            "X-Title": "Adrar AI — Bilan Carbone",
+        },
+    )
+    model = os.getenv("EXTRACTION_MODEL", "qwen/qwen3-plus")
     try:
-        import anthropic
-
-        b64_pdf = base64.standard_b64encode(content).decode()
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model=_HAIKU_MODEL,
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": _EXTRACTION_PROMPT + ocr_text}],
             max_tokens=2048,
-            system=_SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "document",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "application/pdf",
-                                "data": b64_pdf,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": "Extract all energy/fuel consumption data as JSON.",
-                        },
-                    ],
-                }
-            ],
+            temperature=0.2,
         )
-        raw = msg.content[0].text if msg.content else "[]"
-        # Extract JSON block if wrapped in markdown
+        raw = resp.choices[0].message.content or "[]"
         if "```" in raw:
             raw = raw.split("```")[1].lstrip("json").strip()
-        return _parse_haiku_response(raw, doc_id, filename)
+        return _parse_qwen_response(raw, "", "")
     except Exception:
         return []
+
+
+def parse_scan(content: bytes, doc_id: str, filename: str) -> list[ExtractedFact]:
+    """
+    Extract activity data from a scanned PDF.
+
+    Pipeline: PaddleOCR-VL-1.5 (DashScope) → Qwen3-Plus (OpenRouter).
+    If DASHSCOPE_API_KEY or OPENROUTER_API_KEY is not set, the corresponding
+    stage is skipped (graceful degradation; caller logs the skip).
+
+    LLM invariant: output goes to propose_activity only — kernel is never called.
+    """
+    if not os.getenv("DASHSCOPE_API_KEY"):
+        return []
+    ocr_text = ocr_scan(content)
+    if not ocr_text:
+        return []
+    return _extract_facts_with_qwen(ocr_text)

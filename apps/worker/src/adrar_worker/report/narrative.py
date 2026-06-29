@@ -6,12 +6,15 @@ ARCHITECTURE BOUNDARY (§0 invariants):
   - Output: human-readable narrative sections
   - LLM is NEVER in the calc path — kernel is never called here
 
-Provider selection via LLM_PROVIDER env var:
-  gemini-2.5-flash-lite  (default — cheapest, reliable French)
-  gemini-3.1-flash-lite  (step-up quality)
-  qwen3.7-plus           (fallback — strong French multilingual)
-  deepseek-v4-pro        (fallback — heavy/long documents)
-  anthropic              (legacy — kept for compatibility)
+Provider selection via NARRATIVE_MODEL env var (default: deepseek-chat-v3).
+Chinese primary, Gemini 2.5 Flash Lite as cheap last-resort cost option. No
+Anthropic in the cascade (dropped per TODOLIST Phase 1).
+
+Cascade (tried in order if primary fails):
+  deepseek-chat-v3  (OpenRouter — cheapest, good French)
+  qwen3-plus        (OpenRouter — best French)
+  glm-4-plus        (OpenRouter — cheap last-resort)
+  gemini-2.5-flash-lite (Google — cost safety net)
 
 §0.12: The generated report always includes an AI transparency disclosure.
 """
@@ -67,49 +70,45 @@ _STUB_NARRATIVE = {
 # ---------------------------------------------------------------------------
 # Provider configuration
 # ---------------------------------------------------------------------------
-# Maps LLM_PROVIDER value → (api_key_env, model_id, call_fn)
+# Maps NARRATIVE_MODEL value → (api_key_env, model_id, call_fn)
 # call_fn is resolved lazily at runtime to avoid hard import errors when
 # a provider's SDK is not installed.
+# Chinese primary per TODOLIST Phase 1 ("fully-Chinese provider swap").
+# Gemini 2.5 Flash Lite kept as cheap last-resort cost option (free tier).
 
 _PROVIDER_CONFIGS: dict[str, dict] = {
-    # ── Google Gemini (OpenAI-compatible endpoint via google-genai SDK) ────
+    # ── DeepSeek V3 via OpenRouter (default — cheapest, good French) ───────
+    "deepseek-chat-v3": {
+        "key_env": "OPENROUTER_API_KEY",
+        "model": "deepseek/deepseek-chat-v3",
+        "backend": "openrouter",
+    },
+    # ── Qwen3-Plus via OpenRouter (best French quality) ────────────────────
+    "qwen3-plus": {
+        "key_env": "OPENROUTER_API_KEY",
+        "model": "qwen/qwen3-plus",
+        "backend": "openrouter",
+    },
+    # ── GLM-4-Plus via OpenRouter (Zhipu — cheap last-resort) ──────────────
+    "glm-4-plus": {
+        "key_env": "OPENROUTER_API_KEY",
+        "model": "zhipu/glm-4-plus",
+        "backend": "openrouter",
+    },
+    # ── Google Gemini 2.5 Flash Lite (cost safety net, free tier) ──────────
     "gemini-2.5-flash-lite": {
         "key_env": "GEMINI_API_KEY",
         "model": "gemini-2.5-flash-lite",
         "backend": "gemini",
     },
-    "gemini-3.1-flash-lite": {
-        "key_env": "GEMINI_API_KEY",
-        "model": "gemini-3.1-flash-lite-preview",
-        "backend": "gemini",
-    },
-    # ── Qwen via OpenRouter (OpenAI-compatible) ────────────────────────────
-    "qwen3.7-plus": {
-        "key_env": "OPENROUTER_API_KEY",
-        "model": "qwen/qwen3.7-plus",
-        "backend": "openrouter",
-    },
-    # ── DeepSeek via OpenRouter (OpenAI-compatible) ────────────────────────
-    "deepseek-v4-pro": {
-        "key_env": "OPENROUTER_API_KEY",
-        "model": "deepseek/deepseek-v4-pro",
-        "backend": "openrouter",
-    },
-    # ── Anthropic (legacy, kept for compatibility) ─────────────────────────
-    "anthropic": {
-        "key_env": "ANTHROPIC_API_KEY",
-        "model": "claude-haiku-4-5-20251001",
-        "backend": "anthropic",
-    },
 }
 
 # Fallback chain — tried in order if primary fails
 _FALLBACK_CHAIN = [
+    "deepseek-chat-v3",
+    "qwen3-plus",
+    "glm-4-plus",
     "gemini-2.5-flash-lite",
-    "gemini-3.1-flash-lite",
-    "qwen3.7-plus",
-    "deepseek-v4-pro",
-    "anthropic",
 ]
 
 
@@ -248,21 +247,9 @@ def _call_openrouter(model: str, api_key: str, prompt: str) -> dict:
     return _parse_response(response.choices[0].message.content or "")
 
 
-def _call_anthropic(model: str, api_key: str, prompt: str) -> dict:
-    import anthropic  # type: ignore
-    client = anthropic.Anthropic(api_key=api_key)
-    response = client.messages.create(
-        model=model,
-        max_tokens=1200,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return _parse_response(response.content[0].text)
-
-
 _BACKEND_CALLS = {
     "gemini": _call_gemini,
     "openrouter": _call_openrouter,
-    "anthropic": _call_anthropic,
 }
 
 
@@ -330,7 +317,7 @@ def generate_narrative(
 
     Input is AGGREGATE data only — no raw facts, no documents (§0.11).
     """
-    provider = os.getenv("LLM_PROVIDER", "gemini-2.5-flash-lite").strip().lower()
+    provider = os.getenv("NARRATIVE_MODEL", "deepseek-chat-v3").strip().lower()
     prompt = _build_prompt(
         totals=totals,
         project_name=project_name,

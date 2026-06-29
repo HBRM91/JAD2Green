@@ -6,10 +6,13 @@ requires-python = ">=3.11"
 dependencies = [
     "celery[redis]>=5.4",
     "adrar-kernel",
-    # LLM providers — all optional, loaded lazily
-    "google-generativeai>=0.8",   # Gemini 2.5 Flash Lite / 3.1 Flash Lite
-    "openai>=1.30",               # OpenRouter (Qwen3.7-Plus, DeepSeek V4 Pro)
-    "anthropic>=0.28",            # legacy fallback
+    "openai>=1.30",               # OpenRouter (Qwen3-Plus, DeepSeek V3, GLM-4-Plus)
+    "dashscope>=1.14",            # Aliyun DashScope (PaddleOCR-VL-1.5)
+    "google-generativeai>=0.8",   # Gemini 2.5 Flash Lite (cost safety net)
+    "python-docx>=1.2.0",
+    "openpyxl>=3.1.5",
+    "pymupdf>=1.28.0",
+    "pdfplumber>=0.11.10",
 ]
 
 [build-system]

@@ -5,7 +5,7 @@ Upload → virus/format normalize → route → extract → propose facts.
 
 Invariants enforced:
   §0.3 — all writes are state='proposed'; validated is never set here
-  §0.1 — LLM (Haiku) never touches the kernel calculation path
+  §0.1 — OCR/LLM (PaddleOCR-VL-1.5 + Qwen3-Plus) never touches the kernel calculation path
   Dedup — UNIQUE(bureau_id, content_hash) in DB; re-upload is a no-op
 """
 
@@ -58,11 +58,12 @@ def _extract(
         facts = parse_pdf(content, doc_id, filename)
         return facts, "pdf_pdfplumber"
     if route == "scan":
-        # LLM path: Haiku for messy scans (§0 inv 1: never touches kernel)
-        if not os.getenv("ANTHROPIC_API_KEY"):
-            log.warning("ANTHROPIC_API_KEY not set; scan extraction skipped for doc %s", doc_id)
+        if not os.getenv("DASHSCOPE_API_KEY"):
+            log.warning("DASHSCOPE_API_KEY not set; scan OCR skipped for doc %s", doc_id)
+        if not os.getenv("OPENROUTER_API_KEY"):
+            log.warning("OPENROUTER_API_KEY not set; scan extraction skipped for doc %s", doc_id)
         facts = parse_scan(content, doc_id, filename)
-        return facts, "scan_haiku"
+        return facts, "scan_paddleocr_qwen"
     return [], "unknown"
 
 

@@ -32,9 +32,16 @@
    Never hardcode conversions in calc logic.
 10. compute_emissions persists an immutable report_snapshots row with state_hash, full
     computation_trace, factor_set_versions, gwp_basis, uncertainty (separate), reconciliation.
-11. Residency boundary (legal): raw documents, activity_facts, snapshots, traces never leave the
-    tenant region. Only the consultant-reviewed aggregate report may export to Google Docs —
-    opt-in, default OFF. Export is one-way (snapshot → Doc); Google edits never sync back.
+11. Résidence des données (cadre juridique marocain). Documents bruts, activity_facts, snapshots
+    et traces de calcul sont hébergés dans la région du tenant (MA par défaut ; EU sur option).
+    Tout transfert vers un fournisseur d'API managé (Aliyun DashScope, OpenRouter, Google) doit
+    s'appuyer sur un accord de traitement conforme à la **Loi 09-08** (protection des données
+    personnelles) et aux directives de la **CNDP**, et chaque appel est tracé dans `audit_log`
+    (provider, coût, horodatage) pour non-répudiation. Seuls le rapport DOCX agrégé et revu par
+    le consultant et le snapshot associé peuvent être exportés vers Google Docs (opt-in, OFF
+    par défaut). L'export est à sens unique (snapshot → Doc) ; les modifications Google ne sont
+    jamais resynchronisées. Le facteur **ONEE 2023 (0.679 kgCO₂e/kWh)** est la référence
+    réglementaire MA pour Scope 2 location-based.
 12. AI transparency: every generated report contains a disclosure block stating AI-assisted
     drafting + that emission factors require expert validation. Marketing says "accelerates expert
     reporting", never "guaranteed compliant".
@@ -49,8 +56,9 @@
 - Data/Auth/Storage: Supabase (Postgres + pgvector + Storage + Auth). One surface.
   NO Qdrant, NO MinIO, NO Clerk.
 - Async: Celery + Redis
-- Docs processing: pymupdf, pdfplumber, openpyxl, python-docx, Tesseract;
-  Azure Doc Intelligence or Claude Haiku ONLY for messy multilingual scans (route by complexity).
+- Docs processing: pymupdf, pdfplumber, openpyxl, python-docx; PaddleOCR-VL-1.5 via
+  Aliyun DashScope for messy multilingual scans (FR/AR/EN), Qwen3-Plus via OpenRouter for
+  OCR-text → structured facts. No self-hosted models. No Anthropic.
 - Report render: Jinja2 DOCX + matplotlib/plotly PNG
 - Delivery: in-region download (default) + Google Drive files.create adapter (opt-in)
 - Hosting: in-region (MA or EU) per tenant

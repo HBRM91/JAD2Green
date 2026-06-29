@@ -58,7 +58,18 @@
   Tests connect as 'app_user' (non-superuser) to exercise RLS, matching Supabase 'authenticated' role.
   Teardown uses pg_ctl stop -m fast (Windows-compatible; SIGINT not supported on Win32).
 - git push 403 on proxy recovered; all commits through 1ab707b pushed to claude/friendly-gates-m8zhxm.
-- §0.11 wording pending: will rewrite per TODOLIST Phase 1.1 to "managed-API allowed under DPA" scope.
+
+- [x] TODOLIST Phase 1 — fully-Chinese provider swap (CLAUDE.md §0.11 Moroccan wording,
+  STACK docs-processing line, narrative cascade, scan_parser, ingest, deps, tests, .env.example):
+  - §0.11 rewritten in MA legal context (Loi 09-08, CNDP, ONEE 2023, residency)
+  - OCR: PaddleOCR-VL-1.5 via Aliyun DashScope (DASHSCOPE_API_KEY, OCR_ENGINE=paddleocr_vl_15)
+  - Extraction: Qwen3-Plus via OpenRouter, fallback GLM-4-Plus (EXTRACTION_MODEL=qwen/qwen3-plus)
+  - Narrative: DeepSeek V3 via OpenRouter, fallback Qwen3-Plus → GLM-4-Plus → Gemini 2.5
+    Flash Lite last-resort cost safety net (NARRATIVE_MODEL=deepseek/deepseek-chat-v3)
+  - All Anthropic models dropped (no Claude Haiku, no ANTHROPIC_API_KEY)
+  - New `parsers/aliyun_dashscope.py`; pyproject swaps `anthropic` → `dashscope`
+  - Worker test_report: 17/17 pass; kernel: 25/25; API: 38/1 skip
+  - Pre-existing test_ingestion fixture FK error (factor_set_id seed drift) is unrelated
 
 ## OPEN QUESTIONS (stop and ask rather than guess on invariants)
 - none
