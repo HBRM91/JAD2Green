@@ -1,21 +1,12 @@
-"use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getBrowserClient } from "@/lib/supabase";
+import { redirect } from "next/navigation";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
-export default function Home() {
-  const router = useRouter();
-  const [busy, setBusy] = useState(true);
-  useEffect(() => {
-    (async () => {
-      const sb = getBrowserClient();
-      const { data } = await sb.auth.getSession();
-      router.replace(data.session ? "/projects" : "/login");
-    })().finally(() => setBusy(false));
-  }, [router]);
-  return (
-    <main className="min-h-screen flex items-center justify-center text-slate-500">
-      {busy ? "Loading…" : "Redirecting…"}
-    </main>
-  );
+export default async function RootPage() {
+  const supabase = createServerSupabaseClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    redirect("/projects");
+  } else {
+    redirect("/login");
+  }
 }

@@ -172,13 +172,155 @@ def render_bilan_carbone_docx(
         _add_png(doc, charts["category_bar"], width_inches=5.5)
         doc.add_paragraph()
 
-    # ── 6. Recommandations ────────────────────────────────────────────────
+    # ── 6. GRI 305 disclosure (when data present) ─────────────────────────
+    gri_305 = snapshot.get("gri_305_data")
+    if gri_305:
+        doc.add_page_break()
+        _heading(doc, "GRI 305 — Divulgation des émissions", level=1)
+        doc.add_paragraph(
+            "Conformément à la norme GRI 305 (Émissions), les divulgations suivantes sont issues "
+            "du snapshot de calcul Adrar AI. Ces données sont calculées à partir des faits d'activité "
+            "validés par un consultant habilité.\n"
+        )
+        gri_table = doc.add_table(rows=1, cols=3)
+        gri_table.style = "Light Grid Accent 1"
+        gri_hdr = gri_table.rows[0].cells
+        for i, h in enumerate(["Indicateur GRI", "Valeur (tCO₂e)", "Description"]):
+            gri_hdr[i].text = h
+            gri_hdr[i].paragraphs[0].runs[0].font.bold = True
+
+        gri_rows = [
+            ("GRI 305-1", gri_305.get("305-1", 0), "Émissions directes de GES (Scope 1)"),
+            ("GRI 305-2 (loc.)", gri_305.get("305-2-loc", 0), "Émissions indirectes — réseau (location-based)"),
+            ("GRI 305-2 (mkt.)", gri_305.get("305-2-mkt", 0), "Émissions indirectes — marché (market-based)"),
+            ("GRI 305-3", gri_305.get("305-3", 0), "Autres émissions indirectes (Scope 3)"),
+            ("GRI 305 Total (loc.)", gri_305.get("305-total-loc", 0), "Scope 1 + Scope 2 loc. + Scope 3"),
+            ("GRI 305 Total (mkt.)", gri_305.get("305-total-mkt", 0), "Scope 1 + Scope 2 mkt. + Scope 3"),
+        ]
+        for indicator, value, desc in gri_rows:
+            row = gri_table.add_row().cells
+            row[0].text = indicator
+            row[1].text = _dec(value)
+            row[2].text = desc
+
+        doc.add_paragraph()
+        doc.add_paragraph(
+            "Note : La divulgation GRI 305-4 (Intensité des émissions) et GRI 305-5 (Réductions) "
+            "nécessitent un indicateur de dénominateur et des données historiques respectivement. "
+            "Ces divulgations doivent être complétées par le consultant."
+        ).style.font.size = Pt(9)
+
+    # ── 6b. NDC Morocco alignment (when data present) ────────────────────
+    ndc = snapshot.get("ndc_alignment")
+    if ndc and ndc.get("baseline_year"):
+        doc.add_page_break()
+        _heading(doc, "Alignement NDC Maroc 2030", level=1)
+        doc.add_paragraph(
+            "L'objectif climatique du Maroc (NDC 2030) prévoit une réduction de 45,5% des émissions "
+            "par rapport au scénario de référence (BAU). Le tableau ci-dessous présente l'état d'avancement "
+            f"du projet par rapport à cette cible, en utilisant {ndc.get('baseline_year')} comme année de référence."
+        )
+        doc.add_paragraph()
+
+        ndc_table = doc.add_table(rows=1, cols=2)
+        ndc_table.style = "Light Grid Accent 1"
+        ndc_hdr = ndc_table.rows[0].cells
+        ndc_hdr[0].text = "Indicateur"
+        ndc_hdr[0].paragraphs[0].runs[0].font.bold = True
+        ndc_hdr[1].text = "Valeur"
+        ndc_hdr[1].paragraphs[0].runs[0].font.bold = True
+
+        ndc_rows_data = [
+            ("Année de référence", str(ndc.get("baseline_year", "—"))),
+            ("Émissions de référence (tCO₂e)", _dec(ndc.get("baseline_emissions", 0))),
+            ("Émissions actuelles (tCO₂e)", _dec(ndc.get("current_emissions", 0))),
+            ("Cible NDC 2030 (tCO₂e)", _dec(ndc.get("target_emissions", 0))),
+            ("Réduction accomplie (tCO₂e)", _dec(ndc.get("reduction_achieved", 0))),
+            ("Progression vers l'objectif NDC", f"{ndc.get('progress_pct', 0):.1f}%"),
+            ("En bonne voie (on track)", "Oui" if ndc.get("on_track") else "Non" if ndc.get("on_track") is False else "—"),
+        ]
+        for label, value in ndc_rows_data:
+            row = ndc_table.add_row().cells
+            row[0].text = label
+            row[1].text = value
+
+        doc.add_paragraph()
+        doc.add_paragraph(
+            "Source : Contribution Déterminée au niveau National (NDC) du Maroc, 2021. "
+            "Cible conditionnelle : −45,5% par rapport au BAU d'ici 2030."
+        ).style.font.size = Pt(9)
+
+    # ── 6c. GRI 305-4 Intensity metrics (when computed) ──────────────────
+    intensity = snapshot.get("intensity_metrics")
+    if intensity and isinstance(intensity, dict) and intensity:
+        _heading(doc, "GRI 305-4 — Indicateurs d'intensité", level=1)
+        doc.add_paragraph(
+            "Conformément à la divulgation GRI 305-4, les indicateurs d'intensité suivants ont été "
+            "calculés en divisant les émissions totales par le dénominateur de ratio sélectionné."
+        )
+        doc.add_paragraph()
+        int_table = doc.add_table(rows=1, cols=3)
+        int_table.style = "Light Grid Accent 1"
+        int_hdr = int_table.rows[0].cells
+        for i, h in enumerate(["Indicateur (dénominateur)", "Intensité (tCO₂e/unité)", "Unité"]):
+            int_hdr[i].text = h
+            int_hdr[i].paragraphs[0].runs[0].font.bold = True
+        for key, val in intensity.items():
+            parts = key.rsplit("_", 1)
+            name, unit = (parts[0], parts[1]) if len(parts) == 2 else (key, "")
+            row = int_table.add_row().cells
+            row[0].text = name
+            row[1].text = f"{float(val):.4f}"
+            row[2].text = unit
+        doc.add_paragraph()
+
+    # ── 6d. AMEE Bilan Énergétique summary ───────────────────────────────
+    reporting_frameworks = snapshot.get("reporting_frameworks") or []
+    if "amee" in (reporting_frameworks if isinstance(reporting_frameworks, list) else []):
+        doc.add_page_break()
+        _heading(doc, "Bilan Énergétique AMEE — Loi 47-09", level=1)
+        doc.add_paragraph(
+            "Ce projet est assujetti à la déclaration obligatoire AMEE en vertu de la Loi 47-09 "
+            "relative à l'efficacité énergétique. Le bilan énergétique doit être soumis à l'Agence "
+            "Marocaine pour l'Efficacité Énergétique (AMEE) lorsque la consommation dépasse 500 TEP/an.\n\n"
+            "Les données d'énergie primaire et les indicateurs d'intensité énergétique figurant dans "
+            "ce rapport ont été extraits des faits d'activité validés. La déclaration AMEE officielle "
+            "doit être validée et déposée par le consultant habilité."
+        )
+        doc.add_paragraph()
+        # Energy summary from scope 1 (stationary combustion) + scope 2 (electricity)
+        s1 = float(totals.get("scope1", 0))
+        s2 = float(snapshot.get("scope2_location_t") or totals.get("scope2_location", 0))
+        amee_table = doc.add_table(rows=1, cols=2)
+        amee_table.style = "Light Grid Accent 1"
+        amee_hdr = amee_table.rows[0].cells
+        amee_hdr[0].text = "Poste énergétique"
+        amee_hdr[0].paragraphs[0].runs[0].font.bold = True
+        amee_hdr[1].text = "Émissions GES liées (tCO₂e)"
+        amee_hdr[1].paragraphs[0].runs[0].font.bold = True
+        amee_data = [
+            ("Combustion stationnaire (Scope 1)", _dec(s1)),
+            ("Électricité ONEE (Scope 2 location)", _dec(s2)),
+            ("Total énergie directe + indirecte", _dec(s1 + s2)),
+        ]
+        for lbl, val in amee_data:
+            r = amee_table.add_row().cells
+            r[0].text = lbl
+            r[1].text = val
+        doc.add_paragraph()
+        doc.add_paragraph(
+            "Référence : Loi n° 47-09 relative à l'efficacité énergétique (Maroc) — "
+            "Décret d'application relatif aux obligations de déclaration des grandes "
+            "entreprises consommatrices d'énergie."
+        ).style.font.size = Pt(9)
+
+    # ── 7. Recommandations ────────────────────────────────────────────────
     doc.add_page_break()
     _heading(doc, "Recommandations", level=1)
     for rec in narrative.get("recommendations", []):
         doc.add_paragraph(rec, style="List Bullet")
 
-    # ── 7. Annexe : empreinte du calcul ──────────────────────────────────
+    # ── 8. Annexe : empreinte du calcul ──────────────────────────────────
     doc.add_page_break()
     _heading(doc, "Annexe — Empreinte du calcul", level=1)
     doc.add_paragraph(

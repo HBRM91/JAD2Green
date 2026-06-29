@@ -85,6 +85,10 @@ def get_activity_data(
     state: str | None = None,
 ) -> list[ActivityFactResponse]:
     """Return activity facts for a project, optionally filtered by state."""
+    _VALID_STATES = {"proposed", "validated", "final"}
+    if state and state not in _VALID_STATES:
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(400, f"Invalid state filter. Must be one of: {', '.join(sorted(_VALID_STATES))}")
     with db.cursor() as cur:
         if state:
             cur.execute(

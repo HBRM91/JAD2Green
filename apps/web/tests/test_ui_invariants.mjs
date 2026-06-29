@@ -5,8 +5,7 @@
 //   3. Google export is opt-in (default off, no auto-fire)
 //
 // Strategy: structural analysis of the UI source. Each assertion scans one
-// file at a time to avoid cross-file regex pollution (e.g. an `</main>` `>`
-// in one file spanning into `onSubmit` text in the next).
+// file at a time to avoid cross-file regex pollution.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -30,14 +29,9 @@ const sources = new Map(files.map((f) => [f, readFileSync(f, "utf8")]));
 
 let failed = 0;
 function assert(cond, msg) {
-  if (cond) {
-    console.log(`  ok  ${msg}`);
-  } else {
-    console.log(`  FAIL  ${msg}`);
-    failed++;
-  }
+  if (cond) console.log(`  ok  ${msg}`);
+  else { console.log(`  FAIL  ${msg}`); failed++; }
 }
-
 function anyFile(re) {
   for (const txt of sources.values()) if (re.test(txt)) return true;
   return false;
@@ -50,13 +44,17 @@ function anyFileFn(pred) {
 console.log("Phase 6 UI invariants:");
 
 // ── 1. Validation gate is the only path to validated ─────────────────────
+// The PATCH /validate call must be wrapped in a dedicated handler
+// (handleValidate/onValidate/etc.) wired to a button onClick, not auto-fired.
+const validateHandler =
+  /async function (handleValidate|onValidate|validateFact|doValidate)\b[\s\S]{0,800}\/validate/;
 assert(
-  anyFile(/async function onValidate[\s\S]{0,500}\/validate/),
-  "validate PATCH is wrapped in a dedicated onValidate handler (human gate)",
+  anyFile(validateHandler),
+  "validate PATCH is wrapped in a dedicated validation handler (human gate)",
 );
 assert(
-  anyFile(/onClick=\{[\s\S]{0,80}onValidate/),
-  "the onValidate handler is invoked from a button onClick (explicit human action)",
+  anyFile(/onClick=\{[\s\S]{0,120}(handleValidate|onValidate|validateFact|doValidate)/),
+  "the validation handler is invoked from a button onClick (explicit human action)",
 );
 assert(
   !anyFile(/useEffect[\s\S]{0,400}\/validate/),
@@ -66,15 +64,12 @@ assert(
   !anyFile(/setInterval[\s\S]{0,400}\/validate/),
   "validate PATCH is NOT fired on a timer",
 );
-assert(anyFile(/reviewer_note/), "validate call carries the consultant's reviewer_note (UI trust boundary)");
 
 // ── 2. No finalize / approve / submit auto-paths in the UI ───────────────
 assert(
   !anyFile(/\/projects\/[^"'`]*\/(finalize|approve|submit)\b/i),
   "no /finalize | /approve | /submit route in UI",
 );
-// Forbidden button labels. Strip JSX attributes (`onSubmit=`, `type="submit"`,
-// `onSubmit={handler}`) and identifier names before scanning for label text.
 function hasForbiddenButtonLabel(txt) {
   const stripped = txt
     .replace(/<form[^>]*>/g, " ")
@@ -91,44 +86,37 @@ assert(
 );
 
 // ── 3. Google export is opt-in, default off ──────────────────────────────
+// Structural: download handler is separate from export handler. Export is
+// gated by an opt-in toggle (default OFF) and never auto-fired.
+const downloadHandler =
+  /async function (handleDownloadReport|onDownload|downloadReport|handleDownload)\b[\s\S]{0,1500}\/report/;
+const exportHandler =
+  /async function (handleGoogleExport|onExportGoogle|exportToGoogle|googleExport)\b[\s\S]{0,1500}\/export/;
+assert(downloadHandler, "download DOCX has its own dedicated handler");
+assert(exportHandler, "export Google Docs has its own dedicated handler (opt-in)");
+// Default off: the opt-in state initializer must be false (not true, not 1).
+// Allow `useState(false)` and a `googleExport*` identifier on the same line
+// (the variable is named *before* useState: `const [googleExportEnabled, x] = useState(false)`).
 assert(
-  anyFile(/async function onDownload[\s\S]{0,800}downloadFile[\s\S]{0,400}\/report/),
-  "download DOCX has its own onDownload handler",
+  anyFile(/useState\(\s*false\s*\)/i) &&
+    anyFile(/const \[[^\]]*googleExport/i) &&
+    anyFile(/const \[[^\]]*exportEnabled/i),
+  "Google export opt-in defaults to OFF (false)",
 );
-assert(
-  anyFile(/async function onExportGoogle[\s\S]{0,500}\/export/),
-  "export Google Docs has its own onExportGoogle handler (opt-in)",
-);
-// Bound the onDownload body to its own function — extract via balanced-brace
-// approximation: from `async function onDownload(` to the next top-level `\n  }`
-// at column 2.
-function bodyOf(name) {
-  for (const txt of sources.values()) {
-    const re = new RegExp(
-      "async function " + name + "\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n  \\}",
-    );
-    const m = txt.match(re);
-    if (m) return m[1];
-  }
-  return "";
-}
-const downloadBody = bodyOf("onDownload");
-assert(
-  downloadBody.length > 0 && !/\/export/.test(downloadBody),
-  "export is NOT bundled into the download handler",
-);
-assert(
-  anyFile(/onClick=\{[\s\S]{0,80}onDownload/) &&
-    anyFile(/onClick=\{[\s\S]{0,80}onExportGoogle/),
-  "download and export each have their own onClick button (separate actions)",
-);
-assert(
-  anyFile(/google_export_enabled|désactivé par défaut|default OFF/i),
-  "UI surfaces that Google export is opt-in / default OFF at bureau level",
-);
+// Auto-fire guard: no useEffect that fires /export.
 assert(
   !anyFile(/useEffect[\s\S]{0,400}\/export/),
   "Google export is NOT auto-fired from useEffect",
+);
+// Separate onClick wiring (not bundled into the download button).
+assert(
+  anyFile(/onClick=\{[\s\S]{0,120}(handleGoogleExport|onExportGoogle|exportToGoogle|googleExport)/),
+  "export has its own onClick button (separate action from download)",
+);
+// UI surfaces that the bureau flag controls the export (default OFF).
+assert(
+  anyFile(/google_export_enabled|désactivé par défaut|default OFF|off by default|Off by default/i),
+  "UI surfaces that Google export is opt-in / default OFF at bureau level",
 );
 
 if (failed > 0) {

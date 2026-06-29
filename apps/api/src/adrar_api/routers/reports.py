@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from ..deps import DBDep, TenantDep
 
@@ -25,7 +26,8 @@ def _fetch_report_context(db, project_id: str, snap_id: str) -> tuple[dict, str,
             SELECT rs.id, rs.bureau_id, rs.project_id, rs.reporting_year, rs.state_hash,
                    rs.totals_co2e, rs.scope2_location_t, rs.scope2_market_t,
                    rs.computation_trace, rs.factor_set_versions, rs.gwp_basis,
-                   rs.uncertainty, rs.reconciliation, rs.created_at
+                   rs.uncertainty, rs.reconciliation,
+                   rs.gri_305_data, rs.ndc_alignment, rs.created_at
             FROM report_snapshots rs
             WHERE rs.id = %s AND rs.project_id = %s
             """,
@@ -37,7 +39,8 @@ def _fetch_report_context(db, project_id: str, snap_id: str) -> tuple[dict, str,
 
         cur.execute(
             """
-            SELECT p.name AS project_name, c.name AS client_name, m.name AS method_name
+            SELECT p.name AS project_name, c.name AS client_name, m.name AS method_name,
+                   p.reporting_frameworks, p.sector_code
             FROM projects p
             JOIN clients c ON c.id = p.client_id
             JOIN methodologies m ON m.id = p.methodology_id
@@ -63,8 +66,14 @@ def _fetch_report_context(db, project_id: str, snap_id: str) -> tuple[dict, str,
         "gwp_basis": snap_row["gwp_basis"],
         "uncertainty": snap_row["uncertainty"],
         "reconciliation": snap_row["reconciliation"],
+        "gri_305_data": snap_row.get("gri_305_data"),
+        "ndc_alignment": snap_row.get("ndc_alignment"),
     }
-    return snapshot, meta["project_name"], meta["client_name"], meta["method_name"]
+    extra = {
+        "reporting_frameworks": meta.get("reporting_frameworks"),
+        "sector_code": meta.get("sector_code"),
+    }
+    return snapshot, meta["project_name"], meta["client_name"], meta["method_name"], extra
 
 
 @router.get("/projects/{project_id}/snapshots/{snap_id}/report")
@@ -86,7 +95,7 @@ def download_report(
     from adrar_worker.report.narrative import generate_narrative
     from adrar_worker.report.renderer import render_bilan_carbone_docx
 
-    snapshot, proj_name, client_name, method_name = _fetch_report_context(db, project_id, snap_id)
+    snapshot, proj_name, client_name, method_name, extra = _fetch_report_context(db, project_id, snap_id)
     totals = snapshot.get("totals_co2e", {})
 
     charts = {
@@ -101,9 +110,16 @@ def download_report(
         reporting_year=snapshot["reporting_year"],
         methodology_name=method_name,
         gwp_basis=snapshot.get("gwp_basis", "AR5"),
+        gri_305_data=snapshot.get("gri_305_data"),
+        ndc_alignment=snapshot.get("ndc_alignment"),
+        sector_code=extra.get("sector_code"),
+        reporting_frameworks=extra.get("reporting_frameworks"),
     )
+    # Inject extra project metadata into snapshot for renderer access
+    snapshot_for_render = dict(snapshot)
+    snapshot_for_render["reporting_frameworks"] = extra.get("reporting_frameworks")
     docx_bytes = render_bilan_carbone_docx(
-        snapshot=snapshot,
+        snapshot=snapshot_for_render,
         project_name=proj_name,
         client_name=client_name,
         methodology_name=method_name,
@@ -119,13 +135,17 @@ def download_report(
     )
 
 
+class GoogleExportRequest(BaseModel):
+    google_access_token: str = ""
+
+
 @router.post("/projects/{project_id}/snapshots/{snap_id}/export")
 def export_to_google_docs(
     project_id: str,
     snap_id: str,
+    body: GoogleExportRequest,
     tenant: TenantDep,
     db: DBDep,
-    google_access_token: str = "",
 ) -> dict:
     """
     Export report to Google Docs (opt-in, default OFF — §0.11).
@@ -157,7 +177,7 @@ def export_to_google_docs(
 
     bureau_enabled = bureau["google_export_enabled"] if bureau else False
 
-    snapshot, proj_name, client_name, method_name = _fetch_report_context(db, project_id, snap_id)
+    snapshot, proj_name, client_name, method_name, extra = _fetch_report_context(db, project_id, snap_id)
     totals = snapshot.get("totals_co2e", {})
 
     charts = {
@@ -172,9 +192,15 @@ def export_to_google_docs(
         reporting_year=snapshot["reporting_year"],
         methodology_name=method_name,
         gwp_basis=snapshot.get("gwp_basis", "AR5"),
+        gri_305_data=snapshot.get("gri_305_data"),
+        ndc_alignment=snapshot.get("ndc_alignment"),
+        sector_code=extra.get("sector_code"),
+        reporting_frameworks=extra.get("reporting_frameworks"),
     )
+    snapshot_for_render2 = dict(snapshot)
+    snapshot_for_render2["reporting_frameworks"] = extra.get("reporting_frameworks")
     docx_bytes = render_bilan_carbone_docx(
-        snapshot=snapshot,
+        snapshot=snapshot_for_render2,
         project_name=proj_name,
         client_name=client_name,
         methodology_name=method_name,
@@ -186,7 +212,7 @@ def export_to_google_docs(
         return google_docs_export(
             docx_bytes=docx_bytes,
             bureau_google_export_enabled=bureau_enabled,
-            google_access_token=google_access_token or None,
+            google_access_token=body.google_access_token or None,
             filename=f"Bilan Carbone {proj_name} {snapshot['reporting_year']}",
         )
     except GoogleExportDisabledError as exc:

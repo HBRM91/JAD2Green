@@ -10,6 +10,10 @@ from pydantic import BaseModel, field_validator, model_validator
 class ClientCreate(BaseModel):
     name: str
     sector: str | None = None
+    naics_code: str | None = None
+    secteur_maroc: str | None = None
+    is_listed_bvc: bool = False
+    rse_reporting_required: bool = False
 
 
 class ProjectCreate(BaseModel):
@@ -17,6 +21,11 @@ class ProjectCreate(BaseModel):
     name: str
     reporting_year: int
     methodology_id: str
+    reporting_frameworks: list[str] | None = None
+    sector_code: str | None = None
+    language: Literal["fr", "en", "ar"] = "fr"
+    ndc_target_year: int | None = None
+    ndc_baseline_year: int | None = None
 
 
 class ProposeActivityRequest(BaseModel):

@@ -12,6 +12,14 @@ from ..models.responses import ConversionResponse, FactorSetSummary
 router = APIRouter()
 
 
+@router.get("/methodologies")
+def list_methodologies(tenant: TenantDep, db: DBDep) -> list[dict]:
+    """Return all available methodologies (id, name, code)."""
+    with db.cursor() as cur:
+        cur.execute("SELECT id, name, code FROM methodologies ORDER BY name")
+        return [dict(r) for r in cur.fetchall()]
+
+
 @router.get("/factor-sets", response_model=list[FactorSetSummary])
 def search_factor_sets(
     tenant: TenantDep,

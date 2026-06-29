@@ -7,10 +7,14 @@ Overrides the get_db dependency to inject test connections with GUC already set.
 
 from __future__ import annotations
 
+import os
 import pathlib
 import uuid
 from collections.abc import Generator
 from typing import Annotated
+
+# Prevent startup secret-strength check from failing in test environment
+os.environ.setdefault("ADRAR_TESTING", "1")
 
 import psycopg2
 import psycopg2.extras
@@ -97,19 +101,34 @@ def su_conn(pg):
 
 @pytest.fixture(scope="session")
 def db_ready(su_conn, pg):
-    """Run migrations + seed + create app_user role once per session."""
+    """Run schema migrations + seed + data migrations + create app_user role.
+
+    Order: schema (1-4) -> seed -> data (5, 6). The data migrations
+    (Morocco enhancement, intensity/RSE) reference factor_sets and
+    methodologies that the seed inserts, so the seed must run between
+    schema and data migrations.
+    """
     cur = su_conn.cursor()
-    for mig in sorted(MIGRATIONS_DIR.glob("*.sql")):
+    all_migs = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    schema_nums = {"20240101000001", "20240101000002", "20240101000003", "20240101000004"}
+    data_nums = {"20240101000005", "20240101000006"}
+    schema_migs = [m for m in all_migs if m.name[:14] in schema_nums]
+    data_migs = [m for m in all_migs if m.name[:14] in data_nums]
+    for mig in schema_migs:
         _run_sql_file(cur, mig)
     for seed in sorted(SEED_DIR.glob("*.sql")):
         _run_sql_file(cur, seed)
+    for mig in data_migs:
+        _run_sql_file(cur, mig)
 
     cur.execute("DROP ROLE IF EXISTS app_user")
     cur.execute("CREATE ROLE app_user LOGIN PASSWORD 'test'")
     cur.execute(
         """GRANT SELECT, INSERT, UPDATE, DELETE
            ON bureaus, clients, users, projects, activity_facts,
-              report_snapshots, anomalies, audit_log TO app_user"""
+              report_snapshots, anomalies, audit_log,
+              documents, intensity_denominators, project_intensity_config,
+              rse_scores TO app_user"""
     )
     cur.execute(
         "GRANT SELECT ON methodologies, factor_sets, emission_factors, "

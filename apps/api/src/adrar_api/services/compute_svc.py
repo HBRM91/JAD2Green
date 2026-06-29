@@ -185,6 +185,122 @@ def _uncertainty_to_dict(u: object) -> dict:
     }
 
 
+def _compute_gri_305(result: object) -> dict | None:
+    """
+    Derive GRI 305-1/2-loc/2-mkt/3/4 from kernel result.
+    Returns None if all zeros (no data).
+    """
+    s1 = float(result.scope1_co2e)
+    s2l = float(result.scope2_location_co2e)
+    s2m = float(result.scope2_market_co2e)
+    s3 = float(result.scope3_co2e)
+    total = s1 + s2l + s3
+    if total == 0:
+        return None
+    return {
+        "305-1": round(s1, 4),
+        "305-2-loc": round(s2l, 4),
+        "305-2-mkt": round(s2m, 4),
+        "305-3": round(s3, 4),
+        "305-total-loc": round(s1 + s2l + s3, 4),
+        "305-total-mkt": round(s1 + s2m + s3, 4),
+    }
+
+
+def _compute_ndc_alignment(
+    cur: psycopg2.extensions.cursor,
+    project_id: str,
+    result: object,
+    reporting_year: int,
+) -> dict | None:
+    """
+    Compute NDC Morocco alignment for region=MA projects.
+    Morocco NDC target: -45.5% vs BAU by 2030 from 2010 baseline.
+    Only meaningful if we have a baseline in the project.
+    """
+    cur.execute(
+        "SELECT ndc_target_year, ndc_baseline_year FROM projects WHERE id = %s",
+        (project_id,),
+    )
+    row = cur.fetchone()
+    if not row or not row.get("ndc_baseline_year"):
+        return None
+
+    baseline_year = row["ndc_baseline_year"]
+    target_year = row.get("ndc_target_year") or 2030
+
+    # Look for a snapshot from the baseline year to compare
+    cur.execute(
+        """
+        SELECT totals_co2e FROM report_snapshots
+        WHERE project_id = %s AND reporting_year = %s
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        (project_id, baseline_year),
+    )
+    baseline_row = cur.fetchone()
+    if not baseline_row:
+        return None
+
+    baseline_totals = baseline_row["totals_co2e"]
+    baseline_total = float(baseline_totals.get("total", 0))
+    current_total = float(result.total_co2e)
+
+    if baseline_total == 0:
+        return None
+
+    ndc_target_pct = 0.455  # Morocco NDC: -45.5% vs BAU
+    target_emissions = baseline_total * (1 - ndc_target_pct)
+    reduction_achieved = baseline_total - current_total
+    progress_pct = (reduction_achieved / (baseline_total * ndc_target_pct)) * 100 if baseline_total > 0 else 0
+
+    return {
+        "baseline_year": baseline_year,
+        "target_year": target_year,
+        "target_reduction_pct": 45.5,
+        "baseline_emissions": round(baseline_total, 4),
+        "current_emissions": round(current_total, 4),
+        "target_emissions": round(target_emissions, 4),
+        "reduction_achieved": round(reduction_achieved, 4),
+        "progress_pct": round(progress_pct, 2),
+        "on_track": progress_pct >= ((reporting_year - baseline_year) / (target_year - baseline_year)) * 100 if target_year > baseline_year else None,
+    }
+
+
+def _compute_intensity_metrics(
+    cur: psycopg2.extensions.cursor,
+    project_id: str,
+    result: object,
+    reporting_year: int,
+) -> dict | None:
+    """
+    GRI 305-4: Compute intensity metrics using project_intensity_config.
+    intensity = total_co2e / denominator_value for each configured denominator.
+    """
+    cur.execute(
+        """
+        SELECT pic.denominator_type, pic.denominator_value, id.unit, id.description
+        FROM project_intensity_config pic
+        JOIN intensity_denominators id ON id.code = pic.denominator_type
+        WHERE pic.project_id = %s AND pic.reporting_year = %s AND pic.denominator_value > 0
+        """,
+        (project_id, reporting_year),
+    )
+    rows = cur.fetchall()
+    if not rows:
+        return None
+
+    total_co2e = float(result.total_co2e)
+    if total_co2e == 0:
+        return None
+
+    metrics: dict = {}
+    for r in rows:
+        key = f"{r['denominator_type']}_{r['unit']}"
+        metrics[key] = round(total_co2e / float(r["denominator_value"]), 6)
+    return metrics if metrics else None
+
+
 def run_compute_and_persist(
     conn: psycopg2.extensions.connection,
     project_id: str,
@@ -260,18 +376,25 @@ def run_compute_and_persist(
             for ln in result.computation_trace
         ]
 
+        # GRI 305 auto-derivation (Morocco reporting enhancement)
+        gri_305 = _compute_gri_305(result)
+        ndc = _compute_ndc_alignment(cur, project_id, result, reporting_year)
+        intensity = _compute_intensity_metrics(cur, project_id, result, reporting_year)
+
         cur.execute(
             """
             INSERT INTO report_snapshots
                 (bureau_id, project_id, reporting_year, state_hash,
                  totals_co2e, scope2_location_t, scope2_market_t,
                  computation_trace, factor_set_versions, gwp_basis,
-                 uncertainty, reconciliation, generated_by)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'{}', %s)
+                 uncertainty, reconciliation, gri_305_data, ndc_alignment,
+                 intensity_metrics, generated_by)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'{}', %s, %s, %s, %s)
             RETURNING id, bureau_id, project_id, reporting_year, state_hash,
                       totals_co2e, scope2_location_t, scope2_market_t,
                       computation_trace, factor_set_versions, gwp_basis,
-                      uncertainty, reconciliation, created_at
+                      uncertainty, reconciliation, gri_305_data, ndc_alignment,
+                      intensity_metrics, created_at
             """,
             (
                 bureau_id,
@@ -285,6 +408,9 @@ def run_compute_and_persist(
                 json.dumps(list(result.factor_set_versions)),
                 gwp_basis,
                 json.dumps(_uncertainty_to_dict(result.uncertainty)),
+                json.dumps(gri_305) if gri_305 else None,
+                json.dumps(ndc) if ndc else None,
+                json.dumps(intensity) if intensity else None,
                 user_id,
             ),
         )

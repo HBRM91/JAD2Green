@@ -1,12 +1,6 @@
-"""
-FastAPI dependencies: JWT auth → tenant context → DB connection with GUC.
-
-Invariant §0.6: every request injects bureau_id + role from auth token into
-the DB session via SET LOCAL GUC before any query is executed.
-"""
-
 from __future__ import annotations
 
+import uuid as _uuid
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Annotated
@@ -32,10 +26,23 @@ def _decode_jwt(token: str) -> dict:
             token,
             settings.supabase_jwt_secret,
             algorithms=["HS256"],
-            options={"verify_aud": False},
+            # Supabase tokens carry aud="authenticated"; verify it.
+            audience="authenticated",
         )
-    except JWTError as exc:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {exc}") from exc
+    except JWTError:
+        # Generic message — never expose why validation failed (timing/oracle)
+        raise HTTPException(status_code=401, detail="Authentication failed")
+
+
+def _validate_uuid(value: str, field: str) -> str:
+    """Reject malformed UUIDs before they reach the DB GUC."""
+    try:
+        return str(_uuid.UUID(value))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=401, detail=f"Invalid {field} in token")
+
+
+_ALLOWED_ROLES = {"admin", "consultant", "reviewer"}
 
 
 def get_tenant(request: Request) -> TenantContext:
@@ -44,18 +51,28 @@ def get_tenant(request: Request) -> TenantContext:
     if not auth.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Bearer token")
     token = auth.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Empty token")
+
     payload = _decode_jwt(token)
 
-    bureau_id = payload.get("bureau_id")
-    adrar_role = payload.get("adrar_role")
-    user_id = payload.get("sub")
+    bureau_id = payload.get("bureau_id") or ""
+    adrar_role = payload.get("adrar_role") or ""
+    user_id = payload.get("sub") or ""
 
     if not bureau_id:
         raise HTTPException(status_code=401, detail="Token missing bureau_id claim")
     if not adrar_role:
         raise HTTPException(status_code=401, detail="Token missing adrar_role claim")
 
-    return TenantContext(bureau_id=bureau_id, role=adrar_role, user_id=user_id or "")
+    # Validate UUID shape before injecting into DB GUC (belt-and-suspenders)
+    bureau_id = _validate_uuid(bureau_id, "bureau_id")
+
+    # Allowlist role values — never pass arbitrary strings to GUC
+    if adrar_role not in _ALLOWED_ROLES:
+        raise HTTPException(status_code=401, detail="Invalid role in token")
+
+    return TenantContext(bureau_id=bureau_id, role=adrar_role, user_id=user_id)
 
 
 TenantDep = Annotated[TenantContext, Depends(get_tenant)]
@@ -88,3 +105,11 @@ def get_db(tenant: TenantDep) -> Generator[psycopg2.extensions.connection, None,
 
 
 DBDep = Annotated[psycopg2.extensions.connection, Depends(get_db)]
+
+
+def validate_path_uuid(value: str, field: str = "id") -> str:
+    """Validate a UUID path parameter — raise 422 on invalid format."""
+    try:
+        return str(_uuid.UUID(value))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=422, detail=f"Invalid UUID format for {field}")

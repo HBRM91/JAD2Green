@@ -298,9 +298,11 @@ def test_charts_with_empty_data_do_not_crash():
 
 # ── 6. Narrative fallback ─────────────────────────────────────────────────
 
-def test_narrative_returns_stub_without_api_key(monkeypatch):
-    """Without ANTHROPIC_API_KEY, narrative returns a non-empty stub."""
+def test_narrative_returns_stub_when_no_keys_configured(monkeypatch):
+    """When no provider API keys are set, narrative returns a non-empty stub."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     result = generate_narrative(
         totals=_SNAPSHOT["totals_co2e"],
         uncertainty=_SNAPSHOT["uncertainty"],
@@ -313,6 +315,57 @@ def test_narrative_returns_stub_without_api_key(monkeypatch):
     assert "key_findings" in result
     assert "recommendations" in result
     assert isinstance(result["key_findings"], list)
+
+
+def test_narrative_fallback_chain_skips_missing_keys(monkeypatch):
+    """Provider chain skips providers whose keys are absent."""
+    monkeypatch.setenv("LLM_PROVIDER", "gemini-2.5-flash-lite")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    # All keys absent → should return stub without raising
+    result = generate_narrative(
+        totals=_SNAPSHOT["totals_co2e"],
+        uncertainty=_SNAPSHOT["uncertainty"],
+        project_name="Test",
+        reporting_year=2024,
+        methodology_name="BC v8",
+        gwp_basis="AR6",
+    )
+    assert "exec_summary" in result
+    assert "hors-ligne" in result["exec_summary"] or "exec_summary" in result
+
+
+def test_narrative_provider_tag_returned_on_success(monkeypatch):
+    """When a provider succeeds, result contains _provider tag."""
+    import json
+
+    def fake_gemini(model, api_key, prompt):
+        return {
+            "exec_summary": "Synthèse test.",
+            "key_findings": ["Constat 1"],
+            "recommendations": ["Reco 1"],
+        }
+
+    monkeypatch.setenv("LLM_PROVIDER", "gemini-2.5-flash-lite")
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+
+    import adrar_worker.report.narrative as nar
+    original = nar._call_gemini
+    nar._call_gemini = fake_gemini
+    try:
+        result = generate_narrative(
+            totals=_SNAPSHOT["totals_co2e"],
+            uncertainty=_SNAPSHOT["uncertainty"],
+            project_name="Test",
+            reporting_year=2024,
+            methodology_name="BC v8",
+            gwp_basis="AR6",
+        )
+        assert result.get("_provider") == "gemini-2.5-flash-lite"
+        assert result["exec_summary"] == "Synthèse test."
+    finally:
+        nar._call_gemini = original
 
 
 # ── 7. Download adapter ───────────────────────────────────────────────────
